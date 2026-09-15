@@ -29,6 +29,36 @@ class SapODataClient
     }
 
     /*
+     * Fetch arbitrary SAP URL method
+     *
+     * @param string $url
+     * @return array{body: ?array, error: ?string}
+     */
+    public function fetchUrl(string $url, int $timeout = 25): array
+    {
+        if (!$this->isEnabled()) {
+            return ['body' => null, 'error' => 'SAP integration is disabled.'];
+        }
+
+        if (!str_contains($url, '$format=')) {
+            $url .= (str_contains($url, '?') ? '&' : '?') . '$format=json';
+        }
+
+        $username = (string) ($this->cfg['username'] ?? '');
+        $password = (string) ($this->cfg['password'] ?? '');
+
+        if ($username === '' || $password === '') {
+            return ['body' => null, 'error' => 'SAP credentials are not configured.'];
+        }
+
+        if (function_exists('curl_init')) {
+            return $this->requestViaCurl($url, $username, $password, $timeout);
+        }
+
+        return $this->requestViaStream($url, $username, $password, $timeout);
+    }
+
+    /*
      * Stream OData pages to a callback without keeping all rows in memory.
      *
      * @param callable(array<int, array>):void $onBatch

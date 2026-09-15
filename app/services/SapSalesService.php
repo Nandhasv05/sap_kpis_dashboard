@@ -25,60 +25,114 @@ class SapSalesService
     }
 
     /*
-     * Build dashboard payload method
+     * Build dashboard payload method (lightweight view context)
      */
     public function buildDashboardPayload(int $year): array
     {
-        @ini_set('memory_limit', '512M');
-
-        // Fresh summary first, then stale (never block the HTML shell on a full SAP year pull).
-        $summary = $this->readSummaryCache($year, false) ?? $this->readSummaryCache($year, true);
-        if ($summary !== null) {
-            return [
-                'payload'   => $summary,
-                'error'     => null,
-                'row_count' => (int) ($summary['row_count'] ?? 0),
-            ];
-        }
-
-        return $this->syncYearFromSap($year);
+        return [
+            'payload'   => [
+                'currency_symbol' => (string) ($this->cfg['currency_symbol'] ?? '$'),
+            ],
+            'error'     => null,
+            'row_count' => 0,
+        ];
     }
 
     /*
-     * Paginated records method
+     * Paginated records method (delegates directly to getSalesData)
      */
     public function paginatedRecords(int $year, int $page, int $perPage, string $search = '', string $from = '', string $to = ''): array
     {
+        return $this->getSalesData([
+            'year'     => $year,
+            'page'     => $page,
+            'per_page' => $perPage,
+            'search'   => $search,
+            'from'     => $from,
+            'to'       => $to,
+        ]);
+    }
+
+    /**
+     * Get Sales Data directly from SAP on demand without file caching or storage.
+     *
+     * @param array $filters [from_date|from, to_date|to, search|q, page, per_page, year]
+     * @return array
+     */
+    public function getSalesData(array $filters = []): array
+    {
         @ini_set('memory_limit', '512M');
+        @set_time_limit(60);
 
-        $queryTtl = (int) ($this->cfg['query_cache_ttl'] ?? 0);
-        $queryKey = $this->queryCacheKey($year, $page, $perPage, $search, $from, $to);
-        if ($queryTtl > 0) {
-            $cached = $this->readQueryCache($queryKey, $queryTtl);
-            if ($cached !== null) {
-                $cached['cache'] = 'query';
-                return $cached;
-            }
+        $page = max(1, (int) ($filters['page'] ?? 1));
+        $perPage = min(8000, max(1, (int) ($filters['per_page'] ?? 25)));
+        $search = trim((string) ($filters['search'] ?? $filters['q'] ?? ''));
+        $from = trim((string) ($filters['from_date'] ?? $filters['from'] ?? ''));
+        $to = trim((string) ($filters['to_date'] ?? $filters['to'] ?? ''));
+        $year = (int) ($filters['year'] ?? (int) date('Y'));
+
+        // Check if explicit sales_order parameter or if search/q looks like a SalesOrder (e.g. 3239, 0000003239, SO 3239)
+        $soSearch = null;
+        $rawSearch = trim((string) ($filters['sales_order'] ?? $filters['so'] ?? $search));
+        if (preg_match('/^(?:so\s*#?\s*)?(\d{1,10})$/i', $rawSearch, $m)) {
+            $orderDigits = $m[1];
+            $soSearch = [
+                'raw'    => ltrim($orderDigits, '0'),
+                'padded' => str_pad($orderDigits, 10, '0', STR_PAD_LEFT),
+            ];
         }
 
-        $sapError = null;
-        $records = [];
-
-        // Today / week / month: query SAP for that window only (avoids decoding the 17MB year file).
-        if ($this->isNarrowRange($from, $to)) {
-            $range = $this->fetchRecordsForRange($year, $from, $to);
-            $records = $range['records'];
-            $sapError = $range['error'];
+        if ($soSearch !== null) {
+            // Targeted query for specific sales order directly from SAP CDS view (executes in < 0.5s)
+            $filterExpr = sprintf(
+                "SalesOrder eq '%s' or SalesOrder eq '%s'",
+                $soSearch['padded'],
+                $soSearch['raw']
+            );
         } else {
-            $records = $this->loadRecordsCached($year);
-            if ($records === []) {
-                $dash = $this->syncYearFromSap($year);
-                $sapError = $dash['error'] ?? null;
-                $records = $this->loadRecordsCached($year);
+            // Default to current week window if not specified for fast live response
+            if ($from === '' && $to === '') {
+                $now = new DateTime();
+                $dayOfWeek = (int) $now->format('N');
+                $from = (clone $now)->modify('-' . ($dayOfWeek - 1) . ' days')->format('Y-m-d');
+                $to = (clone $now)->modify('+' . (7 - $dayOfWeek) . ' days')->format('Y-m-d');
+            } elseif ($from === '' && $to !== '') {
+                $from = date('Y-m-01', strtotime($to));
+            } elseif ($from !== '' && $to === '') {
+                $to = date('Y-m-d', strtotime($from . ' +6 days'));
             }
+
+            $filterExpr = sprintf(
+                "CreationDate ge datetime'%sT00:00:00' and CreationDate le datetime'%sT23:59:59'",
+                $from,
+                $to
+            );
         }
 
-        $filtered = $this->filterRecords($records, $search, $from, $to);
+        $state = $this->createState($year);
+        $sapError = null;
+
+        try {
+            $queryResult = $this->client->eachPage(function (array $batch) use (&$state, $year): void {
+                foreach ($batch as $row) {
+                    if (is_array($row)) {
+                        $this->ingestRow($row, $state, $year);
+                    }
+                }
+            }, ['$filter' => $filterExpr]);
+
+            if ($state['row_count'] === 0 && !empty($queryResult['error'])) {
+                $sapError = $queryResult['error'];
+            }
+        } catch (Throwable $e) {
+            $sapError = $e->getMessage();
+        }
+
+        $records = $state['records'] ?? [];
+        // When user searches for a specific sales order, do not filter out by date range
+        $filterFrom = $soSearch !== null ? '' : $from;
+        $filterTo = $soSearch !== null ? '' : $to;
+        $filtered = $this->filterRecords($records, $search, $filterFrom, $filterTo);
         unset($records);
 
         $total = count($filtered);
@@ -106,81 +160,85 @@ class SapSalesService
             }
         }
         $orders = count($orderSet);
+        $materials = count(array_unique(array_filter(array_map(
+            static fn($r) => (string) ($r['material'] ?? ''),
+            $filtered
+        ))));
 
-        $result = [
+        $summary = [
+            'net_sales'    => round($net, 2),
+            'cost_amount'  => round($cost, 2),
+            'lines'        => $total,
+            'orders'       => $orders,
+            'avg_line'     => $total > 0 ? round($net / $total, 2) : 0,
+            'avg_order'    => $orders > 0 ? round($net / $orders, 2) : 0,
+            'total_qty'    => round($qty, 3),
+            'return_rate'  => $qty > 0 ? round(($returnQty / $qty) * 100, 2) : 0,
+            'gross_margin' => $net > 0 ? round((($net - $cost) / $net) * 100, 2) : 0,
+            'materials'    => $materials,
+        ];
+
+        $charts = $this->buildChartsFromRecords($filtered);
+
+        if ($sapError !== null && $total === 0) {
+            return [
+                'success' => false,
+                'message' => 'Unable to fetch sales data from SAP: ' . $sapError,
+                'error'   => $sapError,
+                'records' => [],
+                'total'   => 0,
+                'page'    => 1,
+                'pages'   => 1,
+                'per_page'=> $perPage,
+                'summary' => $summary,
+                'charts'  => $charts,
+                'meta'    => [
+                    'source' => 'SAP',
+                    'count'  => 0,
+                ],
+                'data'    => [
+                    'records' => [],
+                    'total'   => 0,
+                    'page'    => 1,
+                    'pages'   => 1,
+                    'per_page'=> $perPage,
+                    'summary' => $summary,
+                    'charts'  => $charts,
+                    'meta'    => [
+                        'source' => 'SAP',
+                        'count'  => 0,
+                    ],
+                ],
+            ];
+        }
+
+        return [
+            'success'  => true,
+            'message'  => 'Sales data fetched successfully',
             'records'  => $slice,
             'total'    => $total,
             'page'     => $page,
             'pages'    => $pages,
             'per_page' => $perPage,
-            'summary'  => [
-                'net_sales'    => round($net, 2),
-                'cost_amount'  => round($cost, 2),
-                'lines'        => $total,
-                'orders'       => $orders,
-                'avg_line'     => $total > 0 ? round($net / $total, 2) : 0,
-                'avg_order'    => $orders > 0 ? round($net / $orders, 2) : 0,
-                'total_qty'    => round($qty, 3),
-                'return_rate'  => $qty > 0 ? round(($returnQty / $qty) * 100, 2) : 0,
-                'gross_margin' => $net > 0 ? round((($net - $cost) / $net) * 100, 2) : 0,
-                'materials'    => count(array_unique(array_filter(array_map(
-                    static fn($r) => (string) ($r['material'] ?? ''),
-                    $filtered
-                )))),
+            'summary'  => $summary,
+            'charts'   => $charts,
+            'meta'     => [
+                'source' => 'SAP',
+                'count'  => $total,
             ],
-            'charts'   => $this->buildChartsFromRecords($filtered),
-            'cache'    => 'live',
-        ];
-
-        if ($total === 0 && !empty($sapError)) {
-            $result['error'] = $sapError;
-        }
-
-        if ($queryTtl > 0 && empty($result['error'])) {
-            $this->writeQueryCache($queryKey, $result);
-        }
-
-        return $result;
-    }
-
-    /*
-     * Sync year from SAP method
-     */
-    private function syncYearFromSap(int $year): array
-    {
-        $state = $this->createState($year);
-        $filter = sprintf(
-            "CreationDate ge datetime'%04d-01-01T00:00:00' and CreationDate le datetime'%04d-12-31T23:59:59'",
-            $year,
-            $year
-        );
-
-        $result = $this->client->eachPage(function (array $batch) use (&$state, $year): void {
-            foreach ($batch as $row) {
-                if (is_array($row)) {
-                    $this->ingestRow($row, $state, $year);
-                }
-            }
-        }, ['$filter' => $filter]);
-
-        if ($state['row_count'] === 0) {
-            return [
-                'payload'   => [],
-                'error'     => $result['error'],
-                'row_count' => 0,
-            ];
-        }
-
-        $payload = $this->finalizeState($state, $year);
-        $this->writeSplitCache($year, $payload);
-        $this->storeRecordsMemory($year, $payload['records'] ?? []);
-
-        unset($payload['records'], $payload['items'], $payload['monthly_qty']);
-
-        return [
-            'payload'   => $payload,
-            'error'     => null,
-            'row_count' => $state['row_count'],
+            'data'     => [
+                'records'  => $slice,
+                'total'    => $total,
+                'page'     => $page,
+                'pages'    => $pages,
+                'per_page' => $perPage,
+                'summary'  => $summary,
+                'charts'   => $charts,
+                'meta'     => [
+                    'source' => 'SAP',
+                    'count'  => $total,
+                ],
+            ],
         ];
     }
 
@@ -488,8 +546,12 @@ class SapSalesService
     private function filterRecords(array $records, string $search, string $from, string $to): array
     {
         $search = strtolower(trim($search));
+        $digits = '';
+        if (preg_match('/(\d+)/', $search, $m)) {
+            $digits = ltrim($m[1], '0');
+        }
 
-        return array_values(array_filter($records, function (array $r) use ($search, $from, $to) {
+        return array_values(array_filter($records, function (array $r) use ($search, $digits, $from, $to) {
             if ($from !== '' && $to !== '' && !empty($r['date_iso'])) {
                 if ($r['date_iso'] < $from || $r['date_iso'] > $to) {
                     return false;
@@ -497,6 +559,12 @@ class SapSalesService
             }
 
             if ($search === '') {
+                return true;
+            }
+
+            $orderNo = strtolower((string) ($r['sales_order'] ?? ''));
+            $cleanOrder = ltrim($orderNo, '0');
+            if ($digits !== '' && ($orderNo === $digits || $cleanOrder === $digits || str_contains($cleanOrder, $digits))) {
                 return true;
             }
 
@@ -516,108 +584,8 @@ class SapSalesService
                 $r['item_category'] ?? '',
             ]));
 
-            return str_contains($hay, $search);
+            return str_contains($hay, $search) || ($digits !== '' && str_contains($hay, $digits));
         }));
-    }
-
-    /*
-     * Load records method
-     */
-    private function loadRecords(int $year): array
-    {
-        $file = $this->recordsCachePath($year);
-        if (!is_file($file)) {
-            // Fall back to previous cache version if we just bumped cache_version.
-            $prev = $this->recordsCachePath($year, max(1, (int) ($this->cfg['cache_version'] ?? 1) - 1));
-            if (is_file($prev)) {
-                $file = $prev;
-            } else {
-                return [];
-            }
-        }
-
-        $data = json_decode((string) file_get_contents($file), true);
-
-        return is_array($data) ? $data : [];
-    }
-
-    /*
-     * Load records cached method
-     */
-    private function loadRecordsCached(int $year): array
-    {
-        static $memo = [];
-        if (isset($memo[$year])) {
-            return $memo[$year];
-        }
-
-        $apcuKey = 'kapis_sap_records_v' . (int) ($this->cfg['cache_version'] ?? 1) . '_' . $year;
-        if (function_exists('apcu_fetch')) {
-            $ok = false;
-            $hit = apcu_fetch($apcuKey, $ok);
-            if ($ok && is_array($hit)) {
-                $memo[$year] = $hit;
-                return $hit;
-            }
-        }
-
-        $records = $this->loadRecords($year);
-        if ($records !== []) {
-            $this->storeRecordsMemory($year, $records);
-            $memo[$year] = $records;
-        }
-
-        return $records;
-    }
-
-    /*
-     * Store records memory method
-     */
-    private function storeRecordsMemory(int $year, array $records): void
-    {
-        $apcuKey = 'kapis_sap_records_v' . (int) ($this->cfg['cache_version'] ?? 1) . '_' . $year;
-        if (function_exists('apcu_store') && $records !== []) {
-            // Keep in shared memory so later FPM requests skip the 17MB json_decode.
-            @apcu_store($apcuKey, $records, max(60, (int) ($this->cfg['cache_ttl'] ?? 3600)));
-        }
-    }
-
-    private function queryCacheKey(int $year, int $page, int $perPage, string $search, string $from, string $to): string
-    {
-        return hash('sha256', implode('|', [
-            (string) ($this->cfg['cache_version'] ?? 1),
-            (string) $year,
-            (string) $page,
-            (string) $perPage,
-            strtolower(trim($search)),
-            $from,
-            $to,
-        ]));
-    }
-
-    private function queryCachePath(string $key): string
-    {
-        return base_path('storage/cache/sap_sales_query_' . $key . '.json');
-    }
-
-    private function readQueryCache(string $key, int $ttl): ?array
-    {
-        $file = $this->queryCachePath($key);
-        if (!is_file($file) || filemtime($file) + $ttl < time()) {
-            return null;
-        }
-        $data = json_decode((string) file_get_contents($file), true);
-
-        return is_array($data) ? $data : null;
-    }
-
-    private function writeQueryCache(string $key, array $payload): void
-    {
-        $dir = base_path('storage/cache');
-        if (!is_dir($dir)) {
-            @mkdir($dir, 0755, true);
-        }
-        @file_put_contents($this->queryCachePath($key), json_encode($payload));
     }
 
     private function createState(int $year): array
@@ -823,6 +791,48 @@ class SapSalesService
         $billingDate = $this->formatDateField($row, 'Billingdocumentdate');
         $pricingDate = $this->formatDateField($row, 'Pricingdate');
 
+        // Extended ZI_SalesApi_HUB entity fields
+        $storageLocation = (string) $this->field($row, ['Storagelocation'], '');
+        $batch = (string) $this->field($row, ['Batch'], '');
+        $matByCust = (string) $this->field($row, ['Materialbycustomer'], '');
+        $origMat = (string) $this->field($row, ['Originallyrequestedmaterial'], '');
+        $productHierarchy = (string) $this->field($row, ['Producthierarchynode'], '');
+        $requestedQty = $this->number($this->field($row, ['Requestedquantity'], 0));
+        $requestedUnit = (string) $this->field($row, ['Requestedquantityunit'], '');
+        $targetQty = $this->number($this->field($row, ['Targetquantity'], 0));
+        $targetUnit = (string) $this->field($row, ['Targetquantityunit'], '');
+        $confdDelivQty = $this->number($this->field($row, ['Confddelivqtyinorderqtyunit'], 0));
+        $confdBaseQty = $this->number($this->field($row, ['Confddeliveryqtyinbaseunit'], 0));
+        $baseUnit = (string) $this->field($row, ['Baseunit'], '');
+        $netPriceAmount = $this->number($this->field($row, ['Netpriceamount'], 0));
+        $netPriceQty = $this->number($this->field($row, ['Netpricequantity'], 1));
+        $netPriceUnit = (string) $this->field($row, ['Netpricequantityunit'], '');
+        $taxAmount = $this->number($this->field($row, ['Taxamount'], 0));
+        $shippingType = (string) $this->field($row, ['Shippingtype'], '');
+        $deliveryPriority = (string) $this->field($row, ['Deliverypriority'], '');
+        $route = (string) $this->field($row, ['Route'], '');
+        $delivDateQtyFixed = (string) $this->field($row, ['Deliverydatequantityisfixed'], '');
+        $partialDelivAllowed = (string) $this->field($row, ['Partialdeliveryisallowed'], '');
+        $itemIsDelivRelevant = (string) $this->field($row, ['Itemisdeliveryrelevant'], '');
+        $itemIsBillRelevant = (string) $this->field($row, ['Itemisbillingrelevant'], '');
+        $billingBlockReason = (string) $this->field($row, ['Itembillingblockreason'], '');
+        $billingPlan = (string) $this->field($row, ['Billingplan'], '');
+        $sdProcessStatus = (string) $this->field($row, ['Sdprocessstatus'], '');
+        $delivConfStatus = (string) $this->field($row, ['Deliveryconfirmationstatus'], '');
+        $purchConfStatus = (string) $this->field($row, ['Purchaseconfirmationstatus'], '');
+        $totalDelivStatus = (string) $this->field($row, ['Totaldeliverystatus'], '');
+        $delivBlockStatus = (string) $this->field($row, ['Deliveryblockstatus'], '');
+        $orderRelBillingStatus = (string) $this->field($row, ['Orderrelatedbillingstatus'], '');
+        $billingBlockStatus = (string) $this->field($row, ['Billingblockstatus'], '');
+        $itemGenIncompStatus = (string) $this->field($row, ['Itemgeneralincompletionstatus'], '');
+        $itemBillIncompStatus = (string) $this->field($row, ['Itembillingincompletionstatus'], '');
+        $pricingIncompStatus = (string) $this->field($row, ['Pricingincompletionstatus'], '');
+        $itemDelivIncompStatus = (string) $this->field($row, ['Itemdeliveryincompletionstatus'], '');
+        $sdDocRejectStatus = (string) $this->field($row, ['Sddocumentrejectionstatus'], '');
+        $totalSdDocRefStatus = (string) $this->field($row, ['Totalsddocreferencestatus'], '');
+        $creationTime = (string) $this->field($row, ['Creationtime'], '');
+        $lastChangeDate = $this->formatDateField($row, 'Lastchangedate');
+
         $id = ($orderNo !== '' ? $orderNo : 'NA') . '-' . ($lineNo !== '' ? $lineNo : count($row));
 
         return [
@@ -858,6 +868,48 @@ class SapSalesService
             'shipping_point'=> $shippingPoint !== '' ? $shippingPoint : '—',
             'material_group'=> $materialGroup !== '' ? $materialGroup : '—',
             'unit'          => $orderUnit !== '' ? $orderUnit : 'EA',
+
+            // Entity ZI_SalesApi_HUB fields
+            'storage_location' => $storageLocation !== '' ? $storageLocation : '—',
+            'batch'            => $batch !== '' ? $batch : '—',
+            'material_by_customer' => $matByCust !== '' ? $matByCust : '—',
+            'originally_requested_material' => $origMat !== '' ? $origMat : '—',
+            'product_hierarchy_node' => $productHierarchy !== '' ? $productHierarchy : '—',
+            'requested_quantity' => round($requestedQty, 3),
+            'requested_quantity_unit' => $requestedUnit !== '' ? $requestedUnit : $orderUnit,
+            'target_quantity' => round($targetQty, 3),
+            'target_quantity_unit' => $targetUnit !== '' ? $targetUnit : $orderUnit,
+            'confd_deliv_qty' => round($confdDelivQty, 3),
+            'confd_delivery_qty_in_base_unit' => round($confdBaseQty, 3),
+            'base_unit'        => $baseUnit !== '' ? $baseUnit : $orderUnit,
+            'net_price_amount' => round($netPriceAmount, 2),
+            'net_price_quantity' => round($netPriceQty, 2),
+            'net_price_quantity_unit' => $netPriceUnit !== '' ? $netPriceUnit : $orderUnit,
+            'tax_amount'       => round($taxAmount, 2),
+            'shipping_type'    => $shippingType !== '' ? $shippingType : '—',
+            'delivery_priority'=> $deliveryPriority !== '' ? $deliveryPriority : '—',
+            'route'            => $route !== '' ? $route : '—',
+            'delivery_date_quantity_is_fixed' => $delivDateQtyFixed,
+            'partial_delivery_is_allowed' => $partialDelivAllowed,
+            'item_is_delivery_relevant' => $itemIsDelivRelevant,
+            'item_is_billing_relevant' => $itemIsBillRelevant,
+            'item_billing_block_reason' => $billingBlockReason !== '' ? $billingBlockReason : '—',
+            'billing_plan'     => $billingPlan !== '' ? $billingPlan : '—',
+            'sd_process_status'=> $sdProcessStatus !== '' ? $sdProcessStatus : '—',
+            'delivery_confirmation_status' => $delivConfStatus !== '' ? $delivConfStatus : '—',
+            'purchase_confirmation_status' => $purchConfStatus !== '' ? $purchConfStatus : '—',
+            'total_delivery_status' => $totalDelivStatus !== '' ? $totalDelivStatus : '—',
+            'delivery_block_status' => $delivBlockStatus !== '' ? $delivBlockStatus : '—',
+            'order_related_billing_status' => $orderRelBillingStatus !== '' ? $orderRelBillingStatus : '—',
+            'billing_block_status' => $billingBlockStatus !== '' ? $billingBlockStatus : '—',
+            'item_general_incompletion_status' => $itemGenIncompStatus !== '' ? $itemGenIncompStatus : '—',
+            'item_billing_incompletion_status' => $itemBillIncompStatus !== '' ? $itemBillIncompStatus : '—',
+            'pricing_incompletion_status' => $pricingIncompStatus !== '' ? $pricingIncompStatus : '—',
+            'item_delivery_incompletion_status' => $itemDelivIncompStatus !== '' ? $itemDelivIncompStatus : '—',
+            'sd_document_rejection_status' => $sdDocRejectStatus !== '' ? $sdDocRejectStatus : '—',
+            'total_sd_doc_reference_status' => $totalSdDocRefStatus !== '' ? $totalSdDocRefStatus : '—',
+            'creation_time'    => $creationTime !== '' ? $creationTime : '—',
+            'last_change_date' => $lastChangeDate,
         ];
     }
 
@@ -985,65 +1037,6 @@ class SapSalesService
         }
 
         return $value === true || $value === 1 || $value === 'X' || $value === 'true';
-    }
-
-    private function readSummaryCache(int $year, bool $allowStale = false): ?array
-    {
-        $ttl = (int) ($this->cfg['cache_ttl'] ?? 0);
-        if ($ttl <= 0 && !$allowStale) {
-            return null;
-        }
-
-        $file = $this->summaryCachePath($year);
-        if (!is_file($file)) {
-            $prev = $this->summaryCachePath($year, max(1, (int) ($this->cfg['cache_version'] ?? 1) - 1));
-            if (is_file($prev)) {
-                $file = $prev;
-            } else {
-                return null;
-            }
-        }
-
-        if (!$allowStale && filemtime($file) + $ttl < time()) {
-            return null;
-        }
-
-        $data = json_decode((string) file_get_contents($file), true);
-
-        return is_array($data) ? $data : null;
-    }
-
-    private function writeSplitCache(int $year, array $payload): void
-    {
-        $ttl = (int) ($this->cfg['cache_ttl'] ?? 0);
-        if ($ttl <= 0) {
-            return;
-        }
-
-        $dir = base_path('storage/cache');
-        if (!is_dir($dir)) {
-            @mkdir($dir, 0755, true);
-        }
-
-        $records = $payload['records'] ?? [];
-        unset($payload['records'], $payload['items'], $payload['monthly_qty']);
-
-        file_put_contents($this->recordsCachePath($year), json_encode($records));
-        file_put_contents($this->summaryCachePath($year), json_encode($payload));
-    }
-
-    private function summaryCachePath(int $year, ?int $version = null): string
-    {
-        $version = $version ?? (int) ($this->cfg['cache_version'] ?? 1);
-
-        return base_path('storage/cache/sap_sales_summary_v' . $version . '_' . $year . '.json');
-    }
-
-    private function recordsCachePath(int $year, ?int $version = null): string
-    {
-        $version = $version ?? (int) ($this->cfg['cache_version'] ?? 1);
-
-        return base_path('storage/cache/sap_sales_records_v' . $version . '_' . $year . '.json');
     }
 
     private function buildChannelShares(array $channels): array

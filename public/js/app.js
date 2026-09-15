@@ -311,10 +311,21 @@
         if (e.target === customModal) customModal.hidden = true;
     });
 
-    // PERIOD TRIGGER CLICK EVENT
+    // PERIOD TRIGGER INITIALIZE
     if (periodTrigger) {
-        const initial = getPeriodRange('this_month');
-        emitPeriod({ ...initial, period: 'this_month' });
+        const pageCfg = window.SALES_PAGE || {};
+        const defPeriod = pageCfg.defaultPeriod || 'this_week';
+        const initial = (pageCfg.defaultFrom && pageCfg.defaultTo)
+            ? { from: pageCfg.defaultFrom, to: pageCfg.defaultTo, period: defPeriod }
+            : getPeriodRange(defPeriod);
+
+        if (periodLabel) {
+            periodLabel.textContent = PERIOD_LABELS[defPeriod] || 'This Week';
+        }
+        document.querySelectorAll('.period-option').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.period === defPeriod);
+        });
+        emitPeriod({ ...initial, period: defPeriod });
     }
 
     // FADE UP, FADE IN, ANIM UP ELEMENTS

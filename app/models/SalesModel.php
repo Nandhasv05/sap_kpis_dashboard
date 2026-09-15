@@ -82,35 +82,26 @@ class SalesModel
     }
 
     /*
+     * Get Sales Data directly from SAP
+     */
+    public function getSalesData(array $filters = []): array
+    {
+        return $this->sap->getSalesData($filters);
+    }
+
+    /*
      * Paginated records method
      */
     public function paginatedRecords(int $year, int $page, int $perPage, string $search, string $from, string $to): array
     {
-        try {
-            $result = $this->sap->paginatedRecords($year, $page, $perPage, $search, $from, $to);
-            $sapOn = !empty(config('sap')['enabled']);
-            if ($sapOn || $result['total'] > 0) {
-                return $result;
-            }
-        } catch (Throwable $e) {
-            if (!empty(config('sap')['enabled'])) {
-                return [
-                    'records'  => [],
-                    'total'    => 0,
-                    'page'     => 1,
-                    'pages'    => 1,
-                    'per_page' => $perPage,
-                    'summary'  => [
-                        'net_sales' => 0, 'lines' => 0, 'orders' => 0, 'avg_line' => 0,
-                        'total_qty' => 0, 'return_rate' => 0, 'gross_margin' => 0,
-                    ],
-                    'charts'   => $this->sap->buildChartsFromRecords([]),
-                    'error'    => $e->getMessage(),
-                ];
-            }
-        }
-
-        return $this->paginateStatic($page, $perPage, $search, $from, $to);
+        return $this->sap->getSalesData([
+            'year'     => $year,
+            'page'     => $page,
+            'per_page' => $perPage,
+            'search'   => $search,
+            'from'     => $from,
+            'to'       => $to,
+        ]);
     }
 
     /*

@@ -6,10 +6,23 @@
 (function () {
     const cfg = window.SALES_PAGE || {};
     const symbol = cfg.currencySymbol || '$';
-    const PALETTE = ['#6366f1', '#f43f5e', '#22d3ee', '#f59e0b', '#10b981', '#ec4899', '#3b82f6', '#a855f7'];
+    const PALETTE = [
+        '#3b82f6', // Electric Royal Blue
+        '#ec4899', // Hot Pink / Fuchsia
+        '#06b6d4', // Bright Turquoise Cyan
+        '#10b981', // Vivid Emerald Green
+        '#8b5cf6', // Royal Purple / Violet
+        '#f59e0b', // Radiant Amber Gold
+        '#f43f5e', // Vibrant Coral Rose
+        '#14b8a6', // Deep Teal
+        '#6366f1', // Indigo Iris
+        '#d946ef', // Neon Fuchsia
+        '#0ea5e9', // Sky Blue
+        '#eab308'  // Goldenrod
+    ];
 
     let currentPage = 1;
-    let pageSize = cfg.pageSize || 25;
+    let pageSize = cfg.pageSize || 10;
     let currentFrom = '';
     let currentTo = '';
     let loading = false;
@@ -26,6 +39,7 @@
     const rangeInfo = document.getElementById('salesRangeInfo');
     const prevBtn = document.getElementById('salesPrev');
     const nextBtn = document.getElementById('salesNext');
+    const pageNumbersContainer = document.getElementById('salesPageNumbers');
     const searchInput = document.getElementById('salesSearch');
     const pageSizeSelect = document.getElementById('salesPageSize');
     const exportWrap = document.getElementById('salesExport');
@@ -38,6 +52,95 @@
     const closeBtn = document.getElementById('salesDetailClose');
     const periodBadge = document.getElementById('salesPeriodBadge');
     const liveCount = document.getElementById('salesLiveCount');
+    const tableCount = document.getElementById('salesTableCount');
+
+    // Enhanced Drawer Elements
+    const drawerSoNum = document.getElementById('salesDetailSoNum');
+    const drawerLineNum = document.getElementById('salesDetailLineNum');
+    const drawerPlantNum = document.getElementById('salesDetailPlantNum');
+    const drawerStatusPill = document.getElementById('salesDetailStatusPill');
+    const drawerSub = document.getElementById('salesDetailSub');
+    const drawerQuickNet = document.getElementById('drawerQuickNet');
+    const drawerQuickQty = document.getElementById('drawerQuickQty');
+    const drawerQuickDate = document.getElementById('drawerQuickDate');
+    const drawerQuickPlant = document.getElementById('drawerQuickPlant');
+    const drawerNetVal = document.getElementById('salesDetailNetVal');
+    const drawerQtyVal = document.getElementById('salesDetailQtyVal');
+    const drawerDateVal = document.getElementById('salesDetailDateVal');
+    const subDrawer = document.getElementById('salesSubDrawer');
+    const subDrawerBackBtn = document.getElementById('btnSubDrawerBack');
+    const subDrawerCloseBtn = document.getElementById('subDrawerClose');
+    const subDrawerCategoryBadge = document.getElementById('subDrawerCategoryBadge');
+    const subDrawerLineBadge = document.getElementById('subDrawerLineBadge');
+    const subDrawerStatusBadge = document.getElementById('subDrawerStatusBadge');
+    const subDrawerTitle = document.getElementById('subDrawerTitle');
+    const drawerNavCards = document.getElementById('salesDrawerNavCards');
+    const dncPlanningVal = document.getElementById('dncPlanningVal');
+    const dncBomVal = document.getElementById('dncBomVal');
+    const dncMaterialVal = document.getElementById('dncMaterialVal');
+    const dncProcVal = document.getElementById('dncProcVal');
+    const panelPlanning = document.getElementById('panelPlanning');
+    const panelBom = document.getElementById('panelBom');
+    const panelMaterial = document.getElementById('panelMaterial');
+    const panelProcurement = document.getElementById('panelProcurement');
+
+    let currentDrawerRecord = null;
+    let activeDrawerTab = null;
+    const procCacheBySo = {};
+    const bomCacheBySo = {};
+    const matCacheByMat = {};
+
+    let currentSortCol = '';
+    let currentSortDir = 'asc';
+    let currentRawRecords = [];
+    let activeColFilters = {
+        sales_order: '',
+        line_item: '',
+        material: '',
+        plant: '',
+        date: '',
+        qty: '',
+        net_amount: '',
+        status: ''
+    };
+
+    // PROCUREMENT ELEMENTS
+    const procCard = document.getElementById('cardProcurement');
+    const procModal = document.getElementById('procurementModal');
+    const procBackdrop = document.getElementById('procurementBackdrop');
+    const procCloseBtn = document.getElementById('procurementModalClose');
+    const procReloadBtn = document.getElementById('btnProcReload');
+    const procSearchInput = document.getElementById('procSearchInput');
+    const procSearchClear = document.getElementById('procSearchClear');
+    const procGroupFilters = document.getElementById('procGroupFilters');
+    const procFilteredCount = document.getElementById('procFilteredCount');
+    const procFilterCountAll = document.getElementById('procFilterCountAll');
+    const procTableBody = document.getElementById('procurementTableBody');
+    const procTableView = document.getElementById('procurementTableView');
+    const prDrawer = document.getElementById('procurementPrDrawer');
+    const prDrawerClose = document.getElementById('prDrawerClose');
+    const prDrawerTitle = document.getElementById('prDrawerTitle');
+    const prDrawerSubtitle = document.getElementById('prDrawerSubtitle');
+    const prDrawerBody = document.getElementById('prDrawerBody');
+    const procStatComponents = document.getElementById('procStatComponents');
+    const procStatReq = document.getElementById('procStatReq');
+    const procStatPR = document.getElementById('procStatPR');
+    const procStatPO = document.getElementById('procStatPO');
+    const procStatStock = document.getElementById('procStatStock');
+    const procSalesDocLabel = document.getElementById('procSalesDocLabel');
+    const procHeaderMaterial = document.getElementById('procHeaderMaterial');
+    const procHeaderDesc = document.getElementById('procHeaderDesc');
+
+    // HEADER SALES ORDER SEARCH ELEMENTS
+    const headerSoSearchInput = document.getElementById('headerSoSearchInput');
+    const headerSoSearchClear = document.getElementById('headerSoSearchClear');
+    const btnHeaderSoSearch = document.getElementById('btnHeaderSoSearch');
+    const headerSoAutocomplete = document.getElementById('headerSoAutocomplete');
+    const headerSoSearchWrap = document.getElementById('headerSoSearchWrap');
+    const ordersKpiCard = document.querySelector('[data-kpi="orders"]');
+    const activeFilterBanner = document.getElementById('salesActiveFilterBanner');
+    const activeFilterText = document.getElementById('salesActiveFilterText');
+    const activeFilterClear = document.getElementById('salesActiveFilterClear');
 
     if (backdrop && backdrop.parentElement !== document.body) {
         document.body.appendChild(backdrop);
@@ -45,7 +148,14 @@
     if (drawer && drawer.parentElement !== document.body) {
         document.body.appendChild(drawer);
     }
+    if (procBackdrop && procBackdrop.parentElement !== document.body) {
+        document.body.appendChild(procBackdrop);
+    }
+    if (procModal && procModal.parentElement !== document.body) {
+        document.body.appendChild(procModal);
+    }
 
+    // CHART ANIMATIONS
     const chartAnim = {
         duration: 1100,
         easing: 'easeOutQuart',
@@ -57,6 +167,9 @@
         },
     };
 
+    /*
+    * FUNTION OF MONEY FORMATTING
+    */
     function fmtMoney(n) {
         return symbol + Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
@@ -65,6 +178,81 @@
         return Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 3 });
     }
 
+    /*
+    * FUNCTION OF NUMBER FORMATTING WITHOUT COMMA SEPARATORS
+    */
+    function fmtRawNum(n) {
+        if (n === null || n === undefined || n === '') return '0';
+        const num = parseFloat(String(n).replace(/,/g, ''));
+        if (isNaN(num)) return '0';
+        return (Math.round(num * 1000) / 1000).toString();
+    }
+
+    /*
+    * FUNCTION TO FORMAT SAP DATES (/Date(ms)/, YYYYMMDD, or ISO to DD Mon YYYY)
+    */
+    function fmtSapDate(d) {
+        if (!d || d === '00000000') return '—';
+        const s = String(d).trim();
+        if (!s || s === 'null' || s === 'undefined') return '—';
+
+        // 1. SAP OData /Date(1788220800000)/ or /Date(1788220800000+0000)/
+        const odataMatch = s.match(/\/Date\((-?\d+)(?:[+-]\d+)?\)\//);
+        if (odataMatch) {
+            const ms = parseInt(odataMatch[1], 10);
+            if (!isNaN(ms)) {
+                const dt = new Date(ms);
+                const day = String(dt.getUTCDate()).padStart(2, '0');
+                const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                const mName = months[dt.getUTCMonth()] || '';
+                const year = dt.getUTCFullYear();
+                return `${day} ${mName} ${year}`;
+            }
+        }
+
+        // 2. YYYYMMDD (e.g. 20260901)
+        if (s.length === 8 && /^\d{8}$/.test(s)) {
+            const year = s.substring(0, 4);
+            const month = s.substring(4, 6);
+            const day = s.substring(6, 8);
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const mIdx = parseInt(month, 10) - 1;
+            const mName = months[mIdx] || month;
+            return `${day} ${mName} ${year}`;
+        }
+
+        // 3. ISO format YYYY-MM-DD (e.g. 2026-09-01 or 2026-09-01T00:00:00)
+        const isoMatch = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (isoMatch) {
+            const year = isoMatch[1];
+            const month = isoMatch[2];
+            const day = isoMatch[3];
+            const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+            const mIdx = parseInt(month, 10) - 1;
+            const mName = months[mIdx] || month;
+            return `${day} ${mName} ${year}`;
+        }
+
+        // 4. Timestamp string (10 or 13 digits)
+        if (/^\d{10,13}$/.test(s)) {
+            const num = parseInt(s, 10);
+            const ms = s.length === 10 ? num * 1000 : num;
+            const dt = new Date(ms);
+            if (!isNaN(dt.getTime())) {
+                const day = String(dt.getUTCDate()).padStart(2, '0');
+                const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                const mName = months[dt.getUTCMonth()] || '';
+                const year = dt.getUTCFullYear();
+                return `${day} ${mName} ${year}`;
+            }
+        }
+
+        return s;
+    }
+
+    /*
+    * FUNTION OF STATUS
+    */
     function statusClass(status) {
         const s = String(status || '').toLowerCase();
         if (s.includes('complete') || s.includes('closed') || s.includes('done')) return 'is-done';
@@ -72,20 +260,32 @@
         return 'is-open';
     }
 
+    /*
+    * FUNTION OF ESCAPE HTML
+    */
     function escapeHtml(str) {
         const el = document.createElement('span');
         el.textContent = String(str ?? '');
         return el.innerHTML;
     }
 
+    /*
+    * FUNTION OF COLOR AT
+    */
     function colorAt(i) {
         return PALETTE[i % PALETTE.length];
     }
 
+    /*
+    * FUNTION OF COLOR SET
+    */
     function colorSet(n) {
         return Array.from({ length: n }, (_, i) => colorAt(i));
     }
 
+    /*
+    * FUNTION OF SHOW SALES LOADER
+    */
     function showSalesLoader(active, opts = {}) {
         if (!hub) return;
         const loader = document.getElementById('salesLoader');
@@ -123,6 +323,9 @@
         }, 400);
     }
 
+    /*
+    * FUNTION OF ANIMATE VALUE
+    */
     function animateValue(el, endValue, formatter, duration = 700) {
         if (!el) return;
         const id = el.id;
@@ -145,6 +348,9 @@
         counterTimers[id] = requestAnimationFrame(tick);
     }
 
+    /*
+    * FUNTION OF APPLY FILTER
+    */
     function applyFilter(value) {
         const term = String(value || '').replace(/^SO\s+/i, '').trim();
         if (!term || !searchInput) return;
@@ -152,6 +358,9 @@
         fetchPage(1);
     }
 
+    /*
+    * FUNTION OF CLICK FILTER
+    */
     function clickFilter(chart) {
         return (evt, elements) => {
             if (!elements.length) return;
@@ -160,6 +369,9 @@
         };
     }
 
+    /*
+    * FUNTION OF RENDER BOARD
+    */
     function renderBoard(el, series, colors) {
         if (!el) return;
         const labels = series?.labels || [];
@@ -192,6 +404,9 @@
         });
     }
 
+    /*
+    * FUNTION OF RENDER BOARDS
+    */
     function renderBoards(charts) {
         renderBoard(document.getElementById('plantBoard'), charts.plants || charts.mix, PALETTE);
         renderBoard(document.getElementById('divisionBoard'), charts.divisions, ['#db2777', '#6366f1', '#f59e0b', '#10b981']);
@@ -213,57 +428,2305 @@
         `;
     }
 
-    function openDetail(record) {
-        if (!record || !drawer) return;
-        const margin = Number(record.net_amount || 0) - Number(record.cost || 0);
+    /* ==========================================================================
+       Interactive Sales Order Offcanvas (Planning, BOM, Material, Procurement)
+    ========================================================================== */
 
-        detailTitle.textContent = `${record.sales_order} · Line ${record.line_item}`;
-        detailBody.innerHTML = `
-            <div class="sales-detail-hero">
-                <div><em>Net amount</em><b>${escapeHtml(fmtMoney(record.net_amount))}</b></div>
-                <div><em>Quantity</em><b>${escapeHtml(fmtNum(record.qty) + (record.unit ? ` ${record.unit}` : ''))}</b></div>
-                <div><em>Plant</em><b>${escapeHtml(record.plant || '—')}</b></div>
+    function openSubDrawer(tabName) {
+        if (!currentDrawerRecord || !tabName) return;
+        activeDrawerTab = tabName;
+
+        const titles = {
+            planning: 'Delivery & Schedule Planning',
+            bom: 'Bill of Materials (BOM)',
+            material: 'Material Master Specifications',
+            procurement: 'Procurement Overview'
+        };
+        const tags = {
+            planning: 'Schedule',
+            bom: 'BOM',
+            material: 'Master',
+            procurement: 'Live SAP'
+        };
+
+        if (subDrawerTitle) subDrawerTitle.textContent = titles[tabName] || 'Category Details';
+
+        const panels = {
+            planning: panelPlanning,
+            bom: panelBom,
+            material: panelMaterial,
+            procurement: panelProcurement
+        };
+
+        Object.keys(panels).forEach(k => {
+            const p = panels[k];
+            if (p) {
+                p.hidden = (k !== tabName);
+                p.classList.toggle('is-active', k === tabName);
+            }
+        });
+
+        if (tabName === 'planning') {
+            renderPlanningPanel(currentDrawerRecord);
+        } else if (tabName === 'bom') {
+            loadDrawerBom(currentDrawerRecord);
+        } else if (tabName === 'material') {
+            loadDrawerMaterial(currentDrawerRecord, false, 'material');
+        } else if (tabName === 'procurement') {
+            loadDrawerProcurement(currentDrawerRecord);
+        }
+
+        if (subDrawer) {
+            subDrawer.classList.add('open');
+            subDrawer.setAttribute('aria-hidden', 'false');
+        }
+    }
+
+    function closeSubDrawer() {
+        if (subDrawer) {
+            subDrawer.classList.remove('open');
+            subDrawer.setAttribute('aria-hidden', 'true');
+        }
+        activeDrawerTab = null;
+    }
+
+    function switchDrawerTab(tabName) {
+        if (!tabName) {
+            closeSubDrawer();
+        } else {
+            openSubDrawer(tabName);
+        }
+    }
+
+    if (drawerNavCards) {
+        drawerNavCards.querySelectorAll('.drawer-nav-card').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const tab = btn.getAttribute('data-tab');
+                if (tab) openSubDrawer(tab);
+            });
+        });
+    }
+
+    subDrawerBackBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeSubDrawer();
+    });
+
+    subDrawerCloseBtn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeDetail();
+    });
+
+    function renderPlanningPanel(record) {
+        if (!panelPlanning) return;
+        const isFixed = record.delivery_date_quantity_is_fixed === 'X' || record.delivery_date_quantity_is_fixed === 'true';
+        const isPartial = record.partial_delivery_is_allowed === 'X' || record.partial_delivery_is_allowed === 'true';
+        const isDelivRel = record.item_is_delivery_relevant === 'X' || record.item_is_delivery_relevant === 'true';
+
+        panelPlanning.innerHTML = `
+            <div class="drawer-section-card">
+                <div class="drawer-sec-header">
+                    <div class="drawer-sec-title-wrap">
+                        <span class="material-icons-round drawer-sec-icon" style="color:#2563eb">event_available</span>
+                        <h4 class="drawer-sec-title">Delivery & Schedule Planning</h4>
+                    </div>
+                    <span class="sales-status-pill ${statusClass(record.status)}">${escapeHtml(record.status || 'Active')}</span>
+                </div>
+                <div class="drawer-info-grid">
+                    <div class="drawer-info-item">
+                        <span class="info-lbl">Confirmed Delivery Qty</span>
+                        <span class="info-val highlight-blue">${fmtNum(record.confd_deliv_qty || record.qty)} ${escapeHtml(record.unit || 'EA')}</span>
+                    </div>
+                    <div class="drawer-info-item">
+                        <span class="info-lbl">Requested Quantity</span>
+                        <span class="info-val">${fmtNum(record.requested_quantity || record.qty)} ${escapeHtml(record.requested_quantity_unit || record.unit || 'EA')}</span>
+                    </div>
+                    <div class="drawer-info-item">
+                        <span class="info-lbl">Target Quantity</span>
+                        <span class="info-val">${fmtNum(record.target_quantity || record.qty)} ${escapeHtml(record.target_quantity_unit || record.unit || 'EA')}</span>
+                    </div>
+                    <div class="drawer-info-item">
+                        <span class="info-lbl">Base Unit</span>
+                        <span class="info-val">${escapeHtml(record.base_unit || record.unit || 'EA')}</span>
+                    </div>
+                    <div class="drawer-info-item">
+                        <span class="info-lbl">Delivery Confirmation</span>
+                        <span class="info-val highlight-green">${escapeHtml(record.delivery_confirmation_status || 'Confirmed')}</span>
+                    </div>
+                    <div class="drawer-info-item">
+                        <span class="info-lbl">SD Process Status</span>
+                        <span class="info-val">${escapeHtml(record.sd_process_status || record.status || 'Active')}</span>
+                    </div>
+                    <div class="drawer-info-item">
+                        <span class="info-lbl">Total Delivery Status</span>
+                        <span class="info-val">${escapeHtml(record.total_delivery_status || record.delivery_status || 'Open')}</span>
+                    </div>
+                    <div class="drawer-info-item">
+                        <span class="info-lbl">Delivery Block Status</span>
+                        <span class="info-val">${escapeHtml(record.delivery_block_status || 'None')}</span>
+                    </div>
+                </div>
             </div>
-            ${groupRows('Product', [
-                ['Material', record.material],
-                ['Originally requested', record.style],
-                ['Material group', record.material_group || '—'],
-                ['Division', record.division + (record.division_code ? ` (${record.division_code})` : '')],
-                ['Item category', record.item_category || '—'],
-            ])}
-            ${groupRows('Commercial', [
-                ['Unit price', fmtMoney(record.unit_price)],
-                ['Cost amount', fmtMoney(record.cost)],
-                ['Gross profit', fmtMoney(margin)],
-                ['Currency', record.currency || 'USD'],
-                ['Customer / PO', record.customer_ref || '—'],
-            ])}
-            ${groupRows('Logistics', [
-                ['Shipping point', record.shipping_point || '—'],
-                ['Sales district', record.sales_district || '—'],
-                ['Customer group', record.customer_group || '—'],
-                ['Delivery status', record.delivery_status || '—'],
-                ['Return item', record.is_return ? 'Yes' : 'No'],
-            ])}
-            ${groupRows('Dates & status', [
-                ['Status', record.status || '—'],
-                ['Creation date', record.date || '—'],
-                ['Billing date', record.billing_date || '—'],
-                ['Pricing date', record.pricing_date || '—'],
-                ['Created by', record.created_by || '—'],
-            ])}
+
+            <div class="drawer-section-card">
+                <div class="drawer-sec-header">
+                    <div class="drawer-sec-title-wrap">
+                        <span class="material-icons-round drawer-sec-icon" style="color:#0284c7">local_shipping</span>
+                        <h4 class="drawer-sec-title">Logistics & Dispatch Rules</h4>
+                    </div>
+                    ${getPlantBadgeHtml(record.plant)}
+                </div>
+                <div class="drawer-info-grid">
+                    <div class="drawer-info-item">
+                        <span class="info-lbl">Plant</span>
+                        <span class="info-val">${escapeHtml(record.plant || '—')}</span>
+                    </div>
+                    <div class="drawer-info-item">
+                        <span class="info-lbl">Storage Location</span>
+                        <span class="info-val">${escapeHtml(record.storage_location || '—')}</span>
+                    </div>
+                    <div class="drawer-info-item">
+                        <span class="info-lbl">Shipping Point</span>
+                        <span class="info-val">${escapeHtml(record.shipping_point || '—')}</span>
+                    </div>
+                    <div class="drawer-info-item">
+                        <span class="info-lbl">Shipping Type</span>
+                        <span class="info-val">${escapeHtml(record.shipping_type || '—')}</span>
+                    </div>
+                    <div class="drawer-info-item">
+                        <span class="info-lbl">Delivery Priority</span>
+                        <span class="info-val">${escapeHtml(record.delivery_priority || 'Standard')}</span>
+                    </div>
+                    <div class="drawer-info-item">
+                        <span class="info-lbl">Route</span>
+                        <span class="info-val">${escapeHtml(record.route || '—')}</span>
+                    </div>
+                    <div class="drawer-info-item">
+                        <span class="info-lbl">Partial Delivery Allowed</span>
+                        <span class="info-val">${isPartial ? 'Yes' : 'No'}</span>
+                    </div>
+                    <div class="drawer-info-item">
+                        <span class="info-lbl">Date & Qty Fixed</span>
+                        <span class="info-val">${isFixed ? 'Yes' : 'No'}</span>
+                    </div>
+                    <div class="drawer-info-item full-width">
+                        <span class="info-lbl">Delivery Relevance</span>
+                        <span class="info-val">${isDelivRel ? 'Relevant for Delivery / Shipping' : 'Standard'}</span>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    function copyTextToClipboard(text, btn) {
+        if (!text) return;
+        const doSuccess = () => {
+            if (btn) {
+                const orig = btn.innerHTML;
+                btn.innerHTML = '<span class="material-icons-round" style="font-size:0.95rem">check</span> Copied!';
+                setTimeout(() => { btn.innerHTML = orig; }, 1800);
+            }
+        };
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(text).then(doSuccess).catch(() => fallbackCopy(text, doSuccess));
+        } else {
+            fallbackCopy(text, doSuccess);
+        }
+    }
+
+    function fallbackCopy(text, cb) {
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.style.position = 'fixed';
+        ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try {
+            document.execCommand('copy');
+            if (cb) cb();
+        } catch (e) { }
+        document.body.removeChild(ta);
+    }
+
+    /* ==========================================================================
+       BOM Panel & SAP Live Data Loader (ZC_COOISCOMP_HUB_CDS)
+    ========================================================================== */
+
+    function renderBomPanel(record, isLoading = false, error = null, bomData = null, rawPayload = null) {
+        if (!panelBom) return;
+        const so = String(record?.sales_order || '4203').trim();
+
+        if (isLoading) {
+            panelBom.innerHTML = `
+                <div class="drawer-section-card" style="text-align:center;padding:3rem 1rem">
+                    <div class="sales-loader-ring" style="margin:0 auto 1.25rem;width:42px;height:42px;border-width:3.5px;border-top-color:#0d9488"></div>
+                    <strong style="font-size:1rem;color:#0f172a;display:block;margin-bottom:0.35rem">Connecting to SAP BOM CDS API</strong>
+                    <span style="font-size:0.82rem;color:#64748b">Fetching live Bill of Materials components for Sales Order #${escapeHtml(so)}…</span>
+                </div>
+            `;
+            return;
+        }
+
+        if (error) {
+            panelBom.innerHTML = `
+                <div class="drawer-section-card" style="text-align:center;padding:2.5rem 1rem">
+                    <span class="material-icons-round" style="font-size:2.6rem;color:#ef4444;margin-bottom:0.6rem;display:block">error_outline</span>
+                    <div style="font-size:1rem;font-weight:700;color:#0f172a;margin-bottom:0.35rem">SAP BOM Notice</div>
+                    <div style="color:#64748b;font-size:0.85rem;margin-bottom:1.25rem">${escapeHtml(error)}</div>
+                    <button type="button" class="btn-drawer-retry-bom" style="padding:0.5rem 1.2rem;background:#0d9488;color:#fff;border:none;border-radius:0.55rem;font-weight:700;font-size:0.85rem;cursor:pointer;display:inline-flex;align-items:center;gap:0.4rem">
+                        <span class="material-icons-round" style="font-size:1rem">sync</span> Retry SAP Sync
+                    </button>
+                </div>
+            `;
+            const retryBtn = panelBom.querySelector('.btn-drawer-retry-bom');
+            if (retryBtn) {
+                retryBtn.addEventListener('click', () => loadDrawerBom(record, true));
+            }
+            return;
+        }
+
+        const comps = bomData || [];
+        let totalPlan = 0, totalPrd = 0, totalBomQty = 0;
+        comps.forEach(c => {
+            totalPlan += parseFloat(c.PlanQty || 0);
+            totalPrd += parseFloat(c.PrdQty || 0);
+            totalBomQty += parseFloat(c.BOMQuantity || 0);
+        });
+
+        const rawJsonString = JSON.stringify(rawPayload || { data: comps }, null, 2);
+
+        panelBom.innerHTML = `
+            <!-- Colorful BOM Stat Cards -->
+            <div class="bom-stat-grid">
+                <div class="bom-stat-card tone-teal">
+                    <div class="bom-stat-icon-wrap">
+                        <span class="material-icons-round" style="font-size:1.45rem">schema</span>
+                    </div>
+                    <div class="bom-stat-body">
+                        <span class="bom-stat-label">Total Components</span>
+                        <span class="bom-stat-val">${comps.length}</span>
+                        <span class="bom-stat-sub">BOM Line Items</span>
+                    </div>
+                </div>
+
+                <div class="bom-stat-card tone-blue">
+                    <div class="bom-stat-icon-wrap">
+                        <span class="material-icons-round" style="font-size:1.45rem">assignment_turned_in</span>
+                    </div>
+                    <div class="bom-stat-body">
+                        <span class="bom-stat-label">Plan Quantity</span>
+                        <span class="bom-stat-val">${fmtRawNum(totalPlan)}</span>
+                        <span class="bom-stat-sub">Planned Demand</span>
+                    </div>
+                </div>
+
+                <div class="bom-stat-card tone-emerald">
+                    <div class="bom-stat-icon-wrap">
+                        <span class="material-icons-round" style="font-size:1.45rem">factory</span>
+                    </div>
+                    <div class="bom-stat-body">
+                        <span class="bom-stat-label">Prd Quantity</span>
+                        <span class="bom-stat-val">${fmtRawNum(totalPrd)}</span>
+                        <span class="bom-stat-sub">Confirmed Produced</span>
+                    </div>
+                </div>
+
+                <div class="bom-stat-card tone-purple">
+                    <div class="bom-stat-icon-wrap">
+                        <span class="material-icons-round" style="font-size:1.45rem">inventory_2</span>
+                    </div>
+                    <div class="bom-stat-body">
+                        <span class="bom-stat-label">BOM Quantity</span>
+                        <span class="bom-stat-val">${fmtRawNum(totalBomQty)}</span>
+                        <span class="bom-stat-sub">Total Component Ratio</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Table View with 20 items per page & Pagination -->
+            <div id="bomTableView" class="sap-view-pane">
+                <div class="drawer-section-card" style="padding:0;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 1px 3px rgba(0,0,0,0.03)">
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1.1rem 1.25rem;border-bottom:1px solid #f1f5f9;flex-wrap:wrap">
+                        <div style="display:flex;align-items:center;gap:0.65rem;flex-wrap:wrap">
+                            <span class="material-icons-round" style="color:#0d9488;font-size:1.25rem">format_list_bulleted</span>
+                            <span style="font-size:0.95rem;font-weight:700;color:#0f172a">Bill of Materials Item Explosion</span>
+                            <span class="so-badge-pill" id="bomTotalBadge" style="background:#ccfbf1;color:#0f766e;border-color:#99f6e4;font-weight:700;font-size:0.8rem;padding:0.25rem 0.75rem">
+                                Total: ${comps.length} components
+                            </span>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:0.6rem">
+                            <input type="text" class="bom-search-input" placeholder="Search Item or Material…" style="padding:0.42rem 0.85rem;border:1px solid #cbd5e1;border-radius:0.55rem;font-size:0.82rem;outline:none;min-width:240px;box-shadow:inset 0 1px 2px rgba(0,0,0,0.03)"/>
+                        </div>
+                    </div>
+
+                    <div class="drawer-components-table-wrap" style="max-height:none;overflow-x:auto">
+                        <table class="drawer-components-table bom-items-table table-bordered">
+                            <thead>
+                                <tr class="bom-header-row">
+                                    <th class="col-sortable" data-sort="Item" title="Click to sort by Item" style="width:110px">
+                                        <span>Item</span>
+                                        <span class="sort-icon material-icons-round">unfold_more</span>
+                                    </th>
+                                    <th class="col-sortable" data-sort="Material" title="Click to sort by Material">
+                                        <span>Material</span>
+                                        <span class="sort-icon material-icons-round">unfold_more</span>
+                                    </th>
+                                    <th class="col-sortable" data-sort="PlanQty" title="Click to sort by Plan Quantity" style="text-align:right;width:140px">
+                                        <span>Plan Qty</span>
+                                        <span class="sort-icon material-icons-round">unfold_more</span>
+                                    </th>
+                                    <th class="col-sortable" data-sort="PrdQty" title="Click to sort by Prd Quantity" style="text-align:right;width:140px">
+                                        <span>Prd Qty</span>
+                                        <span class="sort-icon material-icons-round">unfold_more</span>
+                                    </th>
+                                    <th class="col-sortable" data-sort="BOMQuantity" title="Click to sort by BOM Quantity" style="text-align:right;width:150px">
+                                        <span>BOM Quantity</span>
+                                        <span class="sort-icon material-icons-round">unfold_more</span>
+                                    </th>
+                                </tr>
+                                <tr class="mat-col-filter-row bom-col-filter-row">
+                                    <th><input type="text" class="mat-col-filter-input bom-col-filter-input" data-filter-col="Item" placeholder="Filter item..."/></th>
+                                    <th><input type="text" class="mat-col-filter-input bom-col-filter-input" data-filter-col="Material" placeholder="Filter material..."/></th>
+                                    <th><input type="text" class="mat-col-filter-input bom-col-filter-input" data-filter-col="PlanQty" placeholder="Min plan..." style="text-align:right"/></th>
+                                    <th><input type="text" class="mat-col-filter-input bom-col-filter-input" data-filter-col="PrdQty" placeholder="Min prd..." style="text-align:right"/></th>
+                                    <th>
+                                        <div style="display:flex;align-items:center;gap:0.25rem">
+                                            <input type="text" class="mat-col-filter-input bom-col-filter-input" data-filter-col="BOMQuantity" placeholder="Min bom..." style="text-align:right"/>
+                                            <button type="button" class="btn-clear-mat-filters" id="btnClearBomFilters" title="Clear all column filters">
+                                                <span class="material-icons-round" style="font-size:13px">clear</span>
+                                            </button>
+                                        </div>
+                                    </th>
+                                </tr>
+                            </thead>
+                            <tbody id="bomTableBody">
+                                <!-- Populated dynamically by page -->
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Pagination Bar -->
+                    <div class="bom-pagination-wrap" id="bomPaginationWrap">
+                        <div class="bom-pagination-info" id="bomPaginationInfo">
+                            Showing 0 to 0 of 0 components
+                        </div>
+                        <div class="bom-pagination-btns" id="bomPaginationBtns">
+                            <!-- Page buttons -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Raw JSON View -->
+            <div id="bomRawView" class="sap-view-pane" style="display:none">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.6rem">
+                    <span style="font-size:0.8rem;color:#64748b;font-weight:600">Total entities returned: ${comps.length}</span>
+                    <button type="button" class="btn-copy-bom-json" style="padding:0.4rem 0.85rem;border-radius:0.5rem;border:1px solid #cbd5e1;background:#fff;cursor:pointer;font-size:0.78rem;font-weight:600;display:inline-flex;align-items:center;gap:0.35rem">
+                        <span class="material-icons-round" style="font-size:0.95rem">content_copy</span> Copy Raw JSON
+                    </button>
+                </div>
+                <pre class="sap-raw-json-view">${escapeHtml(rawJsonString)}</pre>
+            </div>
         `;
 
+        // Sync & Copy JSON button listeners
+        const syncBtn = panelBom.querySelector('.btn-sync-bom-data');
+        if (syncBtn) {
+            syncBtn.addEventListener('click', () => loadDrawerBom(record, true));
+        }
+
+        const copyJsonBtn = panelBom.querySelector('.btn-copy-bom-json');
+        if (copyJsonBtn) {
+            copyJsonBtn.addEventListener('click', () => copyTextToClipboard(rawJsonString, copyJsonBtn));
+        }
+
+        // View tabs switcher
+        const viewBtns = panelBom.querySelectorAll('.sap-view-toggle-btn');
+        viewBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                viewBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                const targetId = btn.getAttribute('data-target');
+                const tv = panelBom.querySelector('#bomTableView');
+                const rv = panelBom.querySelector('#bomRawView');
+                if (tv) tv.style.display = (targetId === 'bomTableView') ? 'block' : 'none';
+                if (rv) rv.style.display = (targetId === 'bomRawView') ? 'block' : 'none';
+            });
+        });
+
+        // 20 items per page Pagination Implementation
+        const PAGE_SIZE = 20;
+        let currentBomPage = 1;
+        let currentBomSortCol = null;
+        let currentBomSortDir = 'asc';
+        const activeBomColFilters = {
+            Item: '',
+            Material: '',
+            PlanQty: '',
+            PrdQty: '',
+            BOMQuantity: ''
+        };
+        let activeBomGlobalSearch = '';
+        let activeFilteredComps = comps.slice();
+
+        const tbodyEl = panelBom.querySelector('#bomTableBody');
+        const infoEl = panelBom.querySelector('#bomPaginationInfo');
+        const btnsEl = panelBom.querySelector('#bomPaginationBtns');
+        const totalBadgeEl = panelBom.querySelector('#bomTotalBadge');
+
+        function renderPage(page) {
+            const totalItems = activeFilteredComps.length;
+            const totalPages = Math.ceil(totalItems / PAGE_SIZE) || 1;
+            currentBomPage = Math.max(1, Math.min(page, totalPages));
+
+            const startIdx = (currentBomPage - 1) * PAGE_SIZE;
+            const endIdx = Math.min(startIdx + PAGE_SIZE, totalItems);
+            const pageData = activeFilteredComps.slice(startIdx, endIdx);
+
+            if (!pageData.length) {
+                tbodyEl.innerHTML = `
+                    <tr>
+                        <td colspan="5" style="text-align:center;padding:2.5rem 1rem;color:#64748b;font-size:0.88rem">
+                            ${comps.length ? 'No components match your search or column filter criteria.' : 'No BOM components found for this sales order in SAP.'}
+                        </td>
+                    </tr>
+                `;
+            } else {
+                tbodyEl.innerHTML = pageData.map(c => `
+                    <tr class="bom-data-row">
+                        <td style="font-family:monospace;font-weight:600;color:#64748b">${escapeHtml(c.Item || '—')}</td>
+                        <td><b style="color:#0f172a">${escapeHtml(c.Material || '—')}</b></td>
+                        <td style="text-align:right;font-weight:600">${fmtRawNum(c.PlanQty)}</td>
+                        <td style="text-align:right;color:#0d9488;font-weight:600">${fmtRawNum(c.PrdQty)}</td>
+                        <td style="text-align:right;color:#6366f1;font-weight:600">${fmtRawNum(c.BOMQuantity)}</td>
+                    </tr>
+                `).join('');
+            }
+
+            // Update info counter
+            if (infoEl) {
+                if (totalItems === 0) {
+                    infoEl.innerHTML = 'Showing <strong>0</strong> components';
+                } else {
+                    infoEl.innerHTML = `Showing <strong>${startIdx + 1}</strong> to <strong>${endIdx}</strong> of <strong>${totalItems}</strong> components (Page <strong>${currentBomPage}</strong> of <strong>${totalPages}</strong>)`;
+                }
+            }
+
+            // Build pagination buttons
+            if (btnsEl) {
+                if (totalPages <= 1) {
+                    btnsEl.innerHTML = '';
+                    return;
+                }
+
+                let btnsHtml = '';
+
+                // Prev button
+                btnsHtml += `
+                    <button type="button" class="bom-page-btn btn-prev" ${currentBomPage === 1 ? 'disabled' : ''} title="Previous Page">
+                        <span class="material-icons-round" style="font-size:0.95rem">chevron_left</span>
+                    </button>
+                `;
+
+                // Calculate pages to show with windowing
+                const maxButtons = 5;
+                let startPage = Math.max(1, currentBomPage - Math.floor(maxButtons / 2));
+                let endPage = Math.min(totalPages, startPage + maxButtons - 1);
+                if (endPage - startPage + 1 < maxButtons) {
+                    startPage = Math.max(1, endPage - maxButtons + 1);
+                }
+
+                if (startPage > 1) {
+                    btnsHtml += `<button type="button" class="bom-page-btn" data-page="1">1</button>`;
+                    if (startPage > 2) {
+                        btnsHtml += `<span class="bom-page-ellipsis">…</span>`;
+                    }
+                }
+
+                for (let i = startPage; i <= endPage; i++) {
+                    btnsHtml += `
+                        <button type="button" class="bom-page-btn ${i === currentBomPage ? 'active' : ''}" data-page="${i}">
+                            ${i}
+                        </button>
+                    `;
+                }
+
+                if (endPage < totalPages) {
+                    if (endPage < totalPages - 1) {
+                        btnsHtml += `<span class="bom-page-ellipsis">…</span>`;
+                    }
+                    btnsHtml += `<button type="button" class="bom-page-btn" data-page="${totalPages}">${totalPages}</button>`;
+                }
+
+                // Next button
+                btnsHtml += `
+                    <button type="button" class="bom-page-btn btn-next" ${currentBomPage === totalPages ? 'disabled' : ''} title="Next Page">
+                        <span class="material-icons-round" style="font-size:0.95rem">chevron_right</span>
+                    </button>
+                `;
+
+                btnsEl.innerHTML = btnsHtml;
+
+                // Event listeners for page buttons
+                btnsEl.querySelector('.btn-prev')?.addEventListener('click', () => renderPage(currentBomPage - 1));
+                btnsEl.querySelector('.btn-next')?.addEventListener('click', () => renderPage(currentBomPage + 1));
+                btnsEl.querySelectorAll('[data-page]').forEach(b => {
+                    b.addEventListener('click', () => {
+                        const p = parseInt(b.dataset.page, 10);
+                        if (p && p !== currentBomPage) renderPage(p);
+                    });
+                });
+            }
+        }
+
+        function applyBomFiltersAndSort() {
+            // 1. Filter
+            let filtered = comps.filter(c => {
+                if (activeBomGlobalSearch) {
+                    const mat = String(c.Material || '').toLowerCase();
+                    const item = String(c.Item || '').toLowerCase();
+                    if (!mat.includes(activeBomGlobalSearch) && !item.includes(activeBomGlobalSearch)) {
+                        return false;
+                    }
+                }
+                if (activeBomColFilters.Item) {
+                    const it = String(c.Item || '').toLowerCase();
+                    if (!it.includes(activeBomColFilters.Item.toLowerCase())) return false;
+                }
+                if (activeBomColFilters.Material) {
+                    const m = String(c.Material || '').toLowerCase();
+                    if (!m.includes(activeBomColFilters.Material.toLowerCase())) return false;
+                }
+                if (activeBomColFilters.PlanQty) {
+                    const minVal = parseFloat(activeBomColFilters.PlanQty);
+                    if (!isNaN(minVal) && (parseFloat(c.PlanQty) || 0) < minVal) return false;
+                }
+                if (activeBomColFilters.PrdQty) {
+                    const minVal = parseFloat(activeBomColFilters.PrdQty);
+                    if (!isNaN(minVal) && (parseFloat(c.PrdQty) || 0) < minVal) return false;
+                }
+                if (activeBomColFilters.BOMQuantity) {
+                    const minVal = parseFloat(activeBomColFilters.BOMQuantity);
+                    if (!isNaN(minVal) && (parseFloat(c.BOMQuantity) || 0) < minVal) return false;
+                }
+                return true;
+            });
+
+            // 2. Sort
+            if (currentBomSortCol) {
+                filtered.sort((a, b) => {
+                    if (currentBomSortCol === 'PlanQty' || currentBomSortCol === 'PrdQty' || currentBomSortCol === 'BOMQuantity') {
+                        const vA = parseFloat(a[currentBomSortCol]) || 0;
+                        const vB = parseFloat(b[currentBomSortCol]) || 0;
+                        return currentBomSortDir === 'asc' ? vA - vB : vB - vA;
+                    }
+                    const vA = String(a[currentBomSortCol] || '').toLowerCase();
+                    const vB = String(b[currentBomSortCol] || '').toLowerCase();
+                    const cmp = vA.localeCompare(vB, undefined, { numeric: true });
+                    return currentBomSortDir === 'asc' ? cmp : -cmp;
+                });
+            }
+
+            activeFilteredComps = filtered;
+            renderPage(1);
+
+            // Update total count badge
+            if (totalBadgeEl) {
+                totalBadgeEl.textContent = (activeFilteredComps.length !== comps.length)
+                    ? `Total: ${activeFilteredComps.length} of ${comps.length} components`
+                    : `Total: ${comps.length} components`;
+            }
+        }
+
+        function updateBomSortHeaders() {
+            panelBom.querySelectorAll('.bom-items-table thead th.col-sortable').forEach(th => {
+                const col = th.dataset.sort;
+                const icon = th.querySelector('.sort-icon');
+                th.classList.remove('is-sorted-asc', 'is-sorted-desc');
+                if (col === currentBomSortCol) {
+                    th.classList.add(currentBomSortDir === 'asc' ? 'is-sorted-asc' : 'is-sorted-desc');
+                    if (icon) icon.textContent = (currentBomSortDir === 'asc' ? 'arrow_upward' : 'arrow_downward');
+                } else {
+                    if (icon) icon.textContent = 'unfold_more';
+                }
+            });
+        }
+
+        // Click listener for sortable headers
+        panelBom.querySelectorAll('.bom-items-table thead th.col-sortable').forEach(th => {
+            th.addEventListener('click', (e) => {
+                if (e.target.closest('input, select, button')) return;
+                const col = th.dataset.sort;
+                if (!col) return;
+                if (currentBomSortCol === col) {
+                    currentBomSortDir = (currentBomSortDir === 'asc' ? 'desc' : 'asc');
+                } else {
+                    currentBomSortCol = col;
+                    currentBomSortDir = 'asc';
+                }
+                updateBomSortHeaders();
+                applyBomFiltersAndSort();
+            });
+        });
+
+        // Column filter input events
+        panelBom.querySelectorAll('.bom-col-filter-input').forEach(inp => {
+            inp.addEventListener('input', () => {
+                const col = inp.dataset.filterCol;
+                if (col) {
+                    activeBomColFilters[col] = inp.value.trim();
+                    applyBomFiltersAndSort();
+                }
+            });
+        });
+
+        // Clear all column filters button
+        const clearBtn = panelBom.querySelector('#btnClearBomFilters');
+        if (clearBtn) {
+            clearBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                Object.keys(activeBomColFilters).forEach(k => activeBomColFilters[k] = '');
+                panelBom.querySelectorAll('.bom-col-filter-input').forEach(i => { i.value = ''; });
+                applyBomFiltersAndSort();
+            });
+        }
+
+        // Global search input
+        const searchInput = panelBom.querySelector('.bom-search-input');
+        if (searchInput) {
+            searchInput.addEventListener('input', () => {
+                activeBomGlobalSearch = searchInput.value.toLowerCase().trim();
+                applyBomFiltersAndSort();
+            });
+        }
+
+        // Initial render
+        renderPage(1);
+    }
+
+    async function loadDrawerBom(record, forceReload = false) {
+        if (!record) return;
+        const so = String(record.sales_order || '4203').trim();
+        if (!forceReload && bomCacheBySo[so]) {
+            renderBomPanel(record, false, null, bomCacheBySo[so].data, bomCacheBySo[so].raw);
+            if (dncBomVal) dncBomVal.textContent = `${bomCacheBySo[so].data.length} components`;
+            return;
+        }
+
+        renderBomPanel(record, true);
+        if (dncBomVal) dncBomVal.textContent = 'Syncing…';
+
+        const endpoint = cfg.bomUrl || '/sales/bom';
+        try {
+            const res = await fetch(`${endpoint}?sales_order=${encodeURIComponent(so)}&_=${Date.now()}`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to load BOM data`);
+            const payload = await res.json();
+            if (payload.status === 'error' || !payload.data) {
+                const err = payload.error || 'No BOM components returned from SAP for SO ' + so;
+                bomCacheBySo[so] = { data: [], raw: payload };
+                renderBomPanel(record, false, err, [], payload);
+                if (dncBomVal) dncBomVal.textContent = '0 components';
+            } else {
+                bomCacheBySo[so] = { data: payload.data, raw: payload };
+                renderBomPanel(record, false, null, payload.data, payload);
+                if (dncBomVal) dncBomVal.textContent = `${payload.data.length} components`;
+            }
+        } catch (err) {
+            renderBomPanel(record, false, err.message, [], null);
+            if (dncBomVal) dncBomVal.textContent = 'SAP Error';
+        }
+    }
+
+    /* ==========================================================================
+       Material Panel & SAP Live Data Loader (ZI_MATERIALAPI_HUB_CDS)
+    ========================================================================== */
+
+    function renderMaterialPanel(record, isLoading = false, error = null, matData = null, rawPayload = null, mode = 'material') {
+        if (!panelMaterial) return;
+        const mat = String(record?.material || '3H001262005').trim();
+        const isDateRange = (mode === 'date_range');
+
+        if (isLoading) {
+            panelMaterial.innerHTML = `
+                <div class="drawer-section-card" style="text-align:center;padding:3.5rem 1rem;background:#ffffff;border:1px solid #e2e8f0;border-radius:0.75rem">
+                    <div class="sales-loader-ring" style="margin:0 auto 1.25rem;width:42px;height:42px;border-width:3.5px;border-top-color:#d97706"></div>
+                    <strong style="font-size:1.05rem;color:#0f172a;display:block;margin-bottom:0.35rem">Connecting to SAP Material Master CDS API</strong>
+                    <span style="font-size:0.82rem;color:#64748b">Fetching live SAP Material Master record for ${escapeHtml(mat)}…</span>
+                </div>
+            `;
+            const modeBtns = panelMaterial.querySelectorAll('.sap-mode-btn');
+            modeBtns.forEach(btn => {
+                btn.addEventListener('click', () => loadDrawerMaterial(record, false, btn.dataset.mode));
+            });
+            return;
+        }
+
+        if (error) {
+            panelMaterial.innerHTML = `
+                <div class="sap-mat-modes" style="display:flex;align-items:center;gap:0.5rem;margin-bottom:1rem">
+                    <button type="button" class="sap-mode-btn ${!isDateRange ? 'active' : ''}" data-mode="material" style="padding:0.42rem 0.95rem;border-radius:9999px;font-size:0.78rem;font-weight:700;cursor:pointer;border:1.5px solid #d97706;background:#d97706;color:#fff;display:inline-flex;align-items:center;gap:0.4rem">
+                        <span class="material-icons-round" style="font-size:1.05rem">inventory_2</span> Order Material (${escapeHtml(mat)})
+                    </button>
+                    <button type="button" class="sap-mode-btn ${isDateRange ? 'active' : ''}" data-mode="date_range" style="padding:0.42rem 0.95rem;border-radius:9999px;font-size:0.78rem;font-weight:700;cursor:pointer;border:1.5px solid #cbd5e1;background:#fff;color:#475569;display:inline-flex;align-items:center;gap:0.4rem">
+                        <span class="material-icons-round" style="font-size:1.05rem">date_range</span> All SAP Created (01–07 Sep 2026)
+                    </button>
+                </div>
+                <div class="drawer-section-card" style="text-align:center;padding:2.5rem 1rem">
+                    <span class="material-icons-round" style="font-size:2.6rem;color:#ef4444;margin-bottom:0.6rem;display:block">error_outline</span>
+                    <div style="font-size:1rem;font-weight:700;color:#0f172a;margin-bottom:0.35rem">SAP Material API Notice</div>
+                    <div style="color:#64748b;font-size:0.85rem;margin-bottom:1.25rem">${escapeHtml(error)}</div>
+                    <button type="button" class="btn-drawer-retry-mat" style="padding:0.5rem 1.2rem;background:#d97706;color:#fff;border:none;border-radius:0.55rem;font-weight:700;font-size:0.85rem;cursor:pointer;display:inline-flex;align-items:center;gap:0.4rem">
+                        <span class="material-icons-round" style="font-size:1rem">sync</span> Retry SAP Sync
+                    </button>
+                </div>
+            `;
+            const retryBtn = panelMaterial.querySelector('.btn-drawer-retry-mat');
+            if (retryBtn) {
+                retryBtn.addEventListener('click', () => loadDrawerMaterial(record, true, mode));
+            }
+            const modeBtns = panelMaterial.querySelectorAll('.sap-mode-btn');
+            modeBtns.forEach(btn => {
+                btn.addEventListener('click', () => loadDrawerMaterial(record, false, btn.dataset.mode));
+            });
+            return;
+        }
+
+        const items = matData || [];
+        const rawJsonString = JSON.stringify(rawPayload || { data: items }, null, 2);
+        const sapMatItem = (!isDateRange && items.length) ? items[0] : null;
+
+        panelMaterial.innerHTML = `
+            <!-- Mode Switchers & Actions -->
+          
+            <!-- Top Controls: Mode Switchers & View Toggles -->
+            <div id="matDataView" class="sap-view-pane">
+                ${isDateRange ? `
+                    <div class="drawer-section-card" style="padding:0;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 1px 3px rgba(0,0,0,0.03)">
+                        <!-- Table Header Point with Total Values Badge, Search & Sync -->
+                        <div style="display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:1.1rem 1.25rem;border-bottom:1px solid #f1f5f9;flex-wrap:wrap">
+                            <div style="display:flex;align-items:center;gap:0.65rem;flex-wrap:wrap">
+                                <span class="material-icons-round" style="color:#d97706;font-size:1.25rem">list_alt</span>
+                                <span style="font-size:0.95rem;font-weight:700;color:#0f172a">SAP Created Materials (01–07 Sep 2026)</span>
+                                <span class="so-badge-pill" id="matTotalBadge" style="background:#fef3c7;color:#b45309;border-color:#fde68a;font-weight:700;font-size:0.8rem;padding:0.25rem 0.75rem">
+                                    Total: ${items.length} records
+                                </span>
+                            </div>
+                            <div style="display:flex;align-items:center;gap:0.6rem">
+                                <input type="text" class="mat-search-input" placeholder="Search Product or Description…" style="padding:0.42rem 0.85rem;border:1px solid #cbd5e1;border-radius:0.55rem;font-size:0.82rem;outline:none;min-width:240px;box-shadow:inset 0 1px 2px rgba(0,0,0,0.03)"/>
+                            </div>
+                        </div>
+
+                        <div class="drawer-components-table-wrap" style="max-height:none;overflow-x:auto">
+                            <table class="drawer-components-table mat-items-table table-bordered">
+                                <thead>
+                                    <tr class="mat-header-row">
+                                        <th class="col-sortable" data-sort="Product" title="Click to sort by Product" style="width:160px">
+                                            <span>Product</span>
+                                            <span class="sort-icon material-icons-round">unfold_more</span>
+                                        </th>
+                                        <th class="col-sortable" data-sort="ProductName" title="Click to sort by Product Name / Style">
+                                            <span>Product Name / Style</span>
+                                            <span class="sort-icon material-icons-round">unfold_more</span>
+                                        </th>
+                                        <th class="col-sortable" data-sort="ProductType" title="Click to sort by Type" style="width:90px">
+                                            <span>Type</span>
+                                            <span class="sort-icon material-icons-round">unfold_more</span>
+                                        </th>
+                                        <th class="col-sortable" data-sort="Plant" title="Click to sort by Plant" style="width:105px">
+                                            <span>Plant</span>
+                                            <span class="sort-icon material-icons-round">unfold_more</span>
+                                        </th>
+                                        <th class="col-sortable" data-sort="StorageLocation" title="Click to sort by Storage Loc" style="width:105px">
+                                            <span>Storage Loc</span>
+                                            <span class="sort-icon material-icons-round">unfold_more</span>
+                                        </th>
+                                        <th class="col-sortable" data-sort="BaseUnit" title="Click to sort by Unit" style="width:75px">
+                                            <span>Unit</span>
+                                            <span class="sort-icon material-icons-round">unfold_more</span>
+                                        </th>
+                                        <th class="col-sortable" data-sort="GrossWeight" title="Click to sort by Gross Weight" style="text-align:right;width:95px">
+                                            <span>Gross Wt</span>
+                                            <span class="sort-icon material-icons-round">unfold_more</span>
+                                        </th>
+                                        <th class="col-sortable" data-sort="CreationDate" title="Click to sort by Creation Date" style="width:140px">
+                                            <span>Creation Date</span>
+                                            <span class="sort-icon material-icons-round">unfold_more</span>
+                                        </th>
+                                    </tr>
+                                    <tr class="mat-col-filter-row">
+                                        <th><input type="text" class="mat-col-filter-input" data-filter-col="Product" placeholder="Filter product..."/></th>
+                                        <th><input type="text" class="mat-col-filter-input" data-filter-col="ProductName" placeholder="Filter style / name..."/></th>
+                                        <th>
+                                            <select class="mat-col-filter-select" data-filter-col="ProductType" id="matColFilterType">
+                                                <option value="">All Types</option>
+                                            </select>
+                                        </th>
+                                        <th>
+                                            <select class="mat-col-filter-select" data-filter-col="Plant" id="matColFilterPlant">
+                                                <option value="">All Plants</option>
+                                            </select>
+                                        </th>
+                                        <th><input type="text" class="mat-col-filter-input" data-filter-col="StorageLocation" placeholder="Loc..."/></th>
+                                        <th>
+                                            <select class="mat-col-filter-select" data-filter-col="BaseUnit" id="matColFilterUnit">
+                                                <option value="">All Units</option>
+                                            </select>
+                                        </th>
+                                        <th><input type="text" class="mat-col-filter-input" data-filter-col="GrossWeight" placeholder="Min wt..." style="text-align:right"/></th>
+                                        <th>
+                                            <div style="display:flex;align-items:center;gap:0.25rem">
+                                                <input type="text" class="mat-col-filter-input" data-filter-col="CreationDate" placeholder="Filter date..."/>
+                                                <button type="button" class="btn-clear-mat-filters" id="btnClearMatFilters" title="Clear all column filters">
+                                                    <span class="material-icons-round" style="font-size:13px">clear</span>
+                                                </button>
+                                            </div>
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody id="matTableBody">
+                                    <!-- Populated dynamically by page -->
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Pagination Bar -->
+                        <div class="bom-pagination-wrap" id="matPaginationWrap">
+                            <div class="bom-pagination-info" id="matPaginationInfo">
+                                Showing 0 to 0 of 0 records
+                            </div>
+                            <div class="bom-pagination-btns" id="matPaginationBtns">
+                                <!-- Page buttons -->
+                            </div>
+                        </div>
+                    </div>
+                ` : `
+                    <div class="drawer-section-card">
+                        <div class="drawer-sec-header">
+                            <div class="drawer-sec-title-wrap">
+                                <span class="material-icons-round drawer-sec-icon" style="color:#d97706">inventory_2</span>
+                                <h4 class="drawer-sec-title">Material Master Specifications</h4>
+                            </div>
+                            <div style="display:flex;align-items:center;gap:0.5rem">
+                                <span class="so-badge-pill" style="background:#fffbeb;color:#b45309;border-color:#fde68a;font-family:monospace;font-weight:700">${escapeHtml(mat)}</span>
+                                <span class="so-badge-pill" style="background:#ecfdf5;color:#047857;border-color:#a7f3d0;font-weight:700"><span class="pulse-dot"></span> Live SAP</span>
+                            </div>
+                        </div>
+                        <div class="drawer-info-grid">
+                            <div class="drawer-info-item full-width">
+                                <span class="info-lbl">Material Code / Product Number</span>
+                                <span class="info-val" style="font-size:1.08rem;font-weight:700;color:#0f172a;font-family:monospace">${escapeHtml(sapMatItem?.Product || mat)}</span>
+                            </div>
+                            <div class="drawer-info-item full-width">
+                                <span class="info-lbl">Description / Style Name</span>
+                                <span class="info-val" style="font-weight:600;color:#0f172a">${escapeHtml(sapMatItem?.ProductName || record?.style || record?.material || '—')}</span>
+                            </div>
+                            <div class="drawer-info-item">
+                                <span class="info-lbl">Product Type</span>
+                                <span class="info-val">${escapeHtml(sapMatItem?.ProductType || record?.item_type || '—')}</span>
+                            </div>
+                            <div class="drawer-info-item">
+                                <span class="info-lbl">Product Group</span>
+                                <span class="info-val">${escapeHtml(sapMatItem?.ProductGroup || record?.material_group || '—')}</span>
+                            </div>
+                            <div class="drawer-info-item">
+                                <span class="info-lbl">Brand</span>
+                                <span class="info-val">${escapeHtml(sapMatItem?.Brand || '—')}</span>
+                            </div>
+                            <div class="drawer-info-item">
+                                <span class="info-lbl">Product Category</span>
+                                <span class="info-val">${escapeHtml(sapMatItem?.ProductCategory || '—')}</span>
+                            </div>
+                            <div class="drawer-info-item">
+                                <span class="info-lbl">Base Unit of Measure</span>
+                                <span class="info-val highlight-amber">${escapeHtml(sapMatItem?.BaseUnit || record?.base_unit || record?.unit || 'EA')}</span>
+                            </div>
+                            <div class="drawer-info-item">
+                                <span class="info-lbl">Gross Weight</span>
+                                <span class="info-val">${sapMatItem?.GrossWeight ? fmtRawNum(sapMatItem.GrossWeight) + ' ' + escapeHtml(sapMatItem.WeightUnit || 'G') : '—'}</span>
+                            </div>
+                            <div class="drawer-info-item">
+                                <span class="info-lbl">Creation Date</span>
+                                <span class="info-val">${escapeHtml(fmtSapDate(sapMatItem?.CreationDate) || sapMatItem?.CreationDate || '—')}</span>
+                            </div>
+                            <div class="drawer-info-item">
+                                <span class="info-lbl">Last Change Date</span>
+                                <span class="info-val">${escapeHtml(fmtSapDate(sapMatItem?.LastChangeDate) || sapMatItem?.LastChangeDate || '—')}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="drawer-section-card">
+                        <div class="drawer-sec-header">
+                            <div class="drawer-sec-title-wrap">
+                                <span class="material-icons-round drawer-sec-icon" style="color:#d97706">domain</span>
+                                <h4 class="drawer-sec-title">Plant &amp; Storage Allocations (${items.length || 1} Plant Records)</h4>
+                            </div>
+                            ${getPlantBadgeHtml(sapMatItem?.Plant || record?.plant)}
+                        </div>
+                        ${items.length > 1 ? `
+                            <div class="drawer-components-table-wrap" style="overflow-x:auto;margin-top:0.75rem">
+                                <table class="drawer-components-table table-bordered">
+                                    <thead>
+                                        <tr>
+                                            <th style="width:120px">Plant</th>
+                                            <th style="width:140px">Storage Loc</th>
+                                            <th style="width:100px">Type</th>
+                                            <th style="width:90px">Base Unit</th>
+                                            <th style="width:110px;text-align:right">Gross Wt</th>
+                                            <th>Batch Mgmt</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${items.map(it => `
+                                            <tr>
+                                                <td>${getPlantBadgeHtml(it.Plant || record?.plant)}</td>
+                                                <td><span style="font-family:monospace;font-weight:700;color:#0f172a">${escapeHtml(it.StorageLocation || '—')}</span></td>
+                                                <td><span class="proc-badge-tag">${escapeHtml(it.ProductType || '—')}</span></td>
+                                                <td>${escapeHtml(it.BaseUnit || 'EA')}</td>
+                                                <td style="text-align:right">${it.GrossWeight ? fmtRawNum(it.GrossWeight) + ' ' + escapeHtml(it.WeightUnit || 'G') : '—'}</td>
+                                                <td>${it.IsBatchManagementRequired === '1' ? '<span style="color:#059669;font-weight:700">Required</span>' : '<span style="color:#94a3b8">No</span>'}</td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        ` : `
+                            <div class="drawer-info-grid">
+                                <div class="drawer-info-item">
+                                    <span class="info-lbl">Plant</span>
+                                    <span class="info-val">${escapeHtml(sapMatItem?.Plant || record?.plant || '—')}</span>
+                                </div>
+                                <div class="drawer-info-item">
+                                    <span class="info-lbl">Storage Location</span>
+                                    <span class="info-val">${escapeHtml(sapMatItem?.StorageLocation || record?.storage_location || '—')}</span>
+                                </div>
+                                <div class="drawer-info-item">
+                                    <span class="info-lbl">Batch</span>
+                                    <span class="info-val">${escapeHtml(record?.batch || '—')}</span>
+                                </div>
+                                <div class="drawer-info-item">
+                                    <span class="info-lbl">Division</span>
+                                    <span class="info-val">${escapeHtml(record?.division || '—')}${record?.division_code ? ' (' + escapeHtml(record.division_code) + ')' : ''}</span>
+                                </div>
+                                <div class="drawer-info-item">
+                                    <span class="info-lbl">Base Unit of Measure</span>
+                                    <span class="info-val highlight-amber">${escapeHtml(sapMatItem?.BaseUnit || record?.base_unit || record?.unit || 'EA')}</span>
+                                </div>
+                                <div class="drawer-info-item">
+                                    <span class="info-lbl">Gross Weight</span>
+                                    <span class="info-val">${sapMatItem?.GrossWeight ? fmtRawNum(sapMatItem.GrossWeight) + ' ' + escapeHtml(sapMatItem.WeightUnit || 'KG') : '—'}</span>
+                                </div>
+                            </div>
+                        `}
+                    </div>
+                `}
+            </div>
+
+            <div id="matRawView" class="sap-view-pane" style="display:none">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:0.6rem">
+                    <span style="font-size:0.8rem;color:#64748b;font-weight:600">Payload size: ${items.length} entities</span>
+                    <button type="button" class="btn-copy-mat-json" style="padding:0.4rem 0.85rem;border-radius:0.5rem;border:1px solid #cbd5e1;background:#fff;cursor:pointer;font-size:0.78rem;font-weight:600;display:inline-flex;align-items:center;gap:0.35rem">
+                        <span class="material-icons-round" style="font-size:0.95rem">content_copy</span> Copy Raw JSON
+                    </button>
+                </div>
+                <pre class="sap-raw-json-view">${escapeHtml(rawJsonString)}</pre>
+            </div>
+        `;
+
+        // Sync & Copy JSON button listeners
+        const syncBtn = panelMaterial.querySelector('.btn-sync-mat-data');
+        if (syncBtn) {
+            syncBtn.addEventListener('click', () => loadDrawerMaterial(record, true, mode));
+        }
+
+        const copyJsonBtn = panelMaterial.querySelector('.btn-copy-mat-json');
+        if (copyJsonBtn) {
+            copyJsonBtn.addEventListener('click', () => copyTextToClipboard(rawJsonString, copyJsonBtn));
+        }
+
+        const modeBtns = panelMaterial.querySelectorAll('.sap-mode-btn');
+        modeBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const targetMode = btn.getAttribute('data-mode');
+                loadDrawerMaterial(record, false, targetMode);
+            });
+        });
+
+        const viewBtns = panelMaterial.querySelectorAll('.sap-view-toggle-btn');
+        viewBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                viewBtns.forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                const targetId = btn.getAttribute('data-target');
+                const dv = panelMaterial.querySelector('#matDataView');
+                const rv = panelMaterial.querySelector('#matRawView');
+                if (dv) dv.style.display = (targetId === 'matDataView') ? 'block' : 'none';
+                if (rv) rv.style.display = (targetId === 'matRawView') ? 'block' : 'none';
+            });
+        });
+
+        if (isDateRange) {
+            // Helper to extract timestamp for date sorting
+            function getSapTimestamp(d) {
+                if (!d) return 0;
+                const s = String(d).trim();
+                const m = s.match(/\/Date\((-?\d+)(?:[+-]\d+)?\)\//);
+                if (m) return parseInt(m[1], 10) || 0;
+                if (s.length === 8 && /^\d{8}$/.test(s)) {
+                    return new Date(s.substring(0, 4) + '-' + s.substring(4, 6) + '-' + s.substring(6, 8)).getTime() || 0;
+                }
+                const t = Date.parse(s);
+                return isNaN(t) ? 0 : t;
+            }
+
+            // 20 items per page Pagination for Material List
+            const PAGE_SIZE = 20;
+            let currentMatPage = 1;
+            let currentMatSortCol = null;
+            let currentMatSortDir = 'asc';
+            const activeMatColFilters = {
+                Product: '',
+                ProductName: '',
+                ProductType: '',
+                Plant: '',
+                StorageLocation: '',
+                BaseUnit: '',
+                GrossWeight: '',
+                CreationDate: ''
+            };
+            let activeGlobalSearch = '';
+            let activeFilteredItems = items.slice();
+
+            const tbodyEl = panelMaterial.querySelector('#matTableBody');
+            const infoEl = panelMaterial.querySelector('#matPaginationInfo');
+            const btnsEl = panelMaterial.querySelector('#matPaginationBtns');
+            const totalBadgeEl = panelMaterial.querySelector('#matTotalBadge');
+
+            // Populate Filter Dropdowns (ProductType, Plant, BaseUnit)
+            function populateMatDropdown(id, prop, label) {
+                const sel = panelMaterial.querySelector('#' + id);
+                if (!sel) return;
+                const uniqueVals = Array.from(new Set(items.map(m => String(m[prop] || '').trim()).filter(Boolean))).sort();
+                sel.innerHTML = `<option value="">${label}</option>` + uniqueVals.map(v =>
+                    `<option value="${escapeHtml(v)}">${escapeHtml(v)}</option>`
+                ).join('');
+            }
+            populateMatDropdown('matColFilterType', 'ProductType', 'All Types');
+            populateMatDropdown('matColFilterPlant', 'Plant', 'All Plants');
+            populateMatDropdown('matColFilterUnit', 'BaseUnit', 'All Units');
+
+            // Render material list page
+            function renderMatPage(page) {
+                const totalItems = activeFilteredItems.length;
+                const totalPages = Math.ceil(totalItems / PAGE_SIZE) || 1;
+                currentMatPage = Math.max(1, Math.min(page, totalPages));
+
+                const startIdx = (currentMatPage - 1) * PAGE_SIZE;
+                const endIdx = Math.min(startIdx + PAGE_SIZE, totalItems);
+                const pageData = activeFilteredItems.slice(startIdx, endIdx);
+
+                if (!pageData.length) {
+                    tbodyEl.innerHTML = `
+                        <tr>
+                            <td colspan="8" style="text-align:center;padding:2.5rem 1rem;color:#64748b;font-size:0.88rem">
+                                ${items.length ? 'No materials match your search or column filter criteria.' : 'No materials found matching CreationDate in SAP.'}
+                            </td>
+                        </tr>
+                    `;
+                } else {
+                    tbodyEl.innerHTML = pageData.map(m => `
+                        <tr class="mat-data-row">
+                            <td><b style="color:#0f172a;font-family:monospace">${escapeHtml(m.Product || '—')}</b></td>
+                            <td>${escapeHtml(m.ProductName || m.Product_Text || '—')}</td>
+                            <td><span class="proc-badge-tag">${escapeHtml(m.ProductType || '—')}</span></td>
+                            <td>${getPlantBadgeHtml(m.Plant)}</td>
+                            <td>${escapeHtml(m.StorageLocation || '—')}</td>
+                            <td>${escapeHtml(m.BaseUnit || 'EA')}</td>
+                            <td style="text-align:right">${fmtRawNum(m.GrossWeight)}</td>
+                            <td style="white-space:nowrap;font-size:0.75rem;color:#64748b">${escapeHtml(fmtSapDate(m.CreationDate) || m.CreationDate || '—')}</td>
+                        </tr>
+                    `).join('');
+                }
+
+                // Update info counter
+                if (infoEl) {
+                    if (totalItems === 0) {
+                        infoEl.innerHTML = 'Showing <strong>0</strong> records';
+                    } else {
+                        infoEl.innerHTML = `Showing <strong>${startIdx + 1}</strong> to <strong>${endIdx}</strong> of <strong>${totalItems}</strong> records (Page <strong>${currentMatPage}</strong> of <strong>${totalPages}</strong>)`;
+                    }
+                }
+
+                // Build pagination buttons
+                if (btnsEl) {
+                    if (totalPages <= 1) {
+                        btnsEl.innerHTML = '';
+                        return;
+                    }
+
+                    let btnsHtml = '';
+
+                    // Prev button
+                    btnsHtml += `
+                        <button type="button" class="bom-page-btn btn-prev" ${currentMatPage === 1 ? 'disabled' : ''} title="Previous Page">
+                            <span class="material-icons-round" style="font-size:0.95rem">chevron_left</span>
+                        </button>
+                    `;
+
+                    // Calculate pages to show with windowing
+                    const maxButtons = 5;
+                    let startPage = Math.max(1, currentMatPage - Math.floor(maxButtons / 2));
+                    let endPage = Math.min(totalPages, startPage + maxButtons - 1);
+                    if (endPage - startPage + 1 < maxButtons) {
+                        startPage = Math.max(1, endPage - maxButtons + 1);
+                    }
+
+                    if (startPage > 1) {
+                        btnsHtml += `<button type="button" class="bom-page-btn" data-page="1">1</button>`;
+                        if (startPage > 2) {
+                            btnsHtml += `<span class="bom-page-ellipsis">…</span>`;
+                        }
+                    }
+
+                    for (let i = startPage; i <= endPage; i++) {
+                        btnsHtml += `
+                            <button type="button" class="bom-page-btn ${i === currentMatPage ? 'active' : ''}" data-page="${i}">
+                                ${i}
+                            </button>
+                        `;
+                    }
+
+                    if (endPage < totalPages) {
+                        if (endPage < totalPages - 1) {
+                            btnsHtml += `<span class="bom-page-ellipsis">…</span>`;
+                        }
+                        btnsHtml += `<button type="button" class="bom-page-btn" data-page="${totalPages}">${totalPages}</button>`;
+                    }
+
+                    // Next button
+                    btnsHtml += `
+                        <button type="button" class="bom-page-btn btn-next" ${currentMatPage === totalPages ? 'disabled' : ''} title="Next Page">
+                            <span class="material-icons-round" style="font-size:0.95rem">chevron_right</span>
+                        </button>
+                    `;
+
+                    btnsEl.innerHTML = btnsHtml;
+
+                    // Event listeners for page buttons
+                    btnsEl.querySelector('.btn-prev')?.addEventListener('click', () => renderMatPage(currentMatPage - 1));
+                    btnsEl.querySelector('.btn-next')?.addEventListener('click', () => renderMatPage(currentMatPage + 1));
+                    btnsEl.querySelectorAll('[data-page]').forEach(b => {
+                        b.addEventListener('click', () => {
+                            const p = parseInt(b.dataset.page, 10);
+                            if (p && p !== currentMatPage) renderMatPage(p);
+                        });
+                    });
+                }
+            }
+
+            // Apply filter and sort
+            function applyFiltersAndSort() {
+                // 1. Filter
+                let filtered = items.filter(m => {
+                    // Global search
+                    if (activeGlobalSearch) {
+                        const prod = String(m.Product || '').toLowerCase();
+                        const name = String(m.ProductName || m.Product_Text || '').toLowerCase();
+                        const plant = String(m.Plant || '').toLowerCase();
+                        if (!prod.includes(activeGlobalSearch) && !name.includes(activeGlobalSearch) && !plant.includes(activeGlobalSearch)) {
+                            return false;
+                        }
+                    }
+                    // Column filters
+                    if (activeMatColFilters.Product) {
+                        const p = String(m.Product || '').toLowerCase();
+                        if (!p.includes(activeMatColFilters.Product.toLowerCase())) return false;
+                    }
+                    if (activeMatColFilters.ProductName) {
+                        const name = String(m.ProductName || m.Product_Text || '').toLowerCase();
+                        if (!name.includes(activeMatColFilters.ProductName.toLowerCase())) return false;
+                    }
+                    if (activeMatColFilters.ProductType) {
+                        const t = String(m.ProductType || '').toLowerCase();
+                        if (t !== activeMatColFilters.ProductType.toLowerCase()) return false;
+                    }
+                    if (activeMatColFilters.Plant) {
+                        const pl = String(m.Plant || '').toUpperCase();
+                        if (pl !== activeMatColFilters.Plant.toUpperCase()) return false;
+                    }
+                    if (activeMatColFilters.StorageLocation) {
+                        const loc = String(m.StorageLocation || '').toLowerCase();
+                        if (!loc.includes(activeMatColFilters.StorageLocation.toLowerCase())) return false;
+                    }
+                    if (activeMatColFilters.BaseUnit) {
+                        const u = String(m.BaseUnit || '').toUpperCase();
+                        if (u !== activeMatColFilters.BaseUnit.toUpperCase()) return false;
+                    }
+                    if (activeMatColFilters.GrossWeight) {
+                        const minWt = parseFloat(activeMatColFilters.GrossWeight);
+                        if (!isNaN(minWt) && (parseFloat(m.GrossWeight) || 0) < minWt) return false;
+                    }
+                    if (activeMatColFilters.CreationDate) {
+                        const dtRaw = String(m.CreationDate || '').toLowerCase();
+                        const dtFmt = fmtSapDate(m.CreationDate).toLowerCase();
+                        const q = activeMatColFilters.CreationDate.toLowerCase();
+                        if (!dtRaw.includes(q) && !dtFmt.includes(q)) return false;
+                    }
+                    return true;
+                });
+
+                // 2. Sort
+                if (currentMatSortCol) {
+                    filtered.sort((a, b) => {
+                        if (currentMatSortCol === 'GrossWeight') {
+                            const vA = parseFloat(a.GrossWeight) || 0;
+                            const vB = parseFloat(b.GrossWeight) || 0;
+                            return currentMatSortDir === 'asc' ? vA - vB : vB - vA;
+                        }
+                        if (currentMatSortCol === 'CreationDate') {
+                            const vA = getSapTimestamp(a.CreationDate);
+                            const vB = getSapTimestamp(b.CreationDate);
+                            return currentMatSortDir === 'asc' ? vA - vB : vB - vA;
+                        }
+                        let vA, vB;
+                        if (currentMatSortCol === 'ProductName') {
+                            vA = String(a.ProductName || a.Product_Text || '').toLowerCase();
+                            vB = String(b.ProductName || b.Product_Text || '').toLowerCase();
+                        } else {
+                            vA = String(a[currentMatSortCol] || '').toLowerCase();
+                            vB = String(b[currentMatSortCol] || '').toLowerCase();
+                        }
+                        const cmp = vA.localeCompare(vB, undefined, { numeric: true });
+                        return currentMatSortDir === 'asc' ? cmp : -cmp;
+                    });
+                }
+
+                activeFilteredItems = filtered;
+                renderMatPage(1);
+
+                // Update total count badge
+                if (totalBadgeEl) {
+                    totalBadgeEl.textContent = (activeFilteredItems.length !== items.length)
+                        ? `Total: ${activeFilteredItems.length} of ${items.length} records`
+                        : `Total: ${items.length} records`;
+                }
+            }
+
+            // Update table header sort icons
+            function updateSortHeaders() {
+                panelMaterial.querySelectorAll('.mat-items-table thead th.col-sortable').forEach(th => {
+                    const col = th.dataset.sort;
+                    const icon = th.querySelector('.sort-icon');
+                    th.classList.remove('is-sorted-asc', 'is-sorted-desc');
+                    if (col === currentMatSortCol) {
+                        th.classList.add(currentMatSortDir === 'asc' ? 'is-sorted-asc' : 'is-sorted-desc');
+                        if (icon) icon.textContent = (currentMatSortDir === 'asc' ? 'arrow_upward' : 'arrow_downward');
+                    } else {
+                        if (icon) icon.textContent = 'unfold_more';
+                    }
+                });
+            }
+
+            // Click listener for sortable headers
+            panelMaterial.querySelectorAll('.mat-items-table thead th.col-sortable').forEach(th => {
+                th.addEventListener('click', (e) => {
+                    if (e.target.closest('input, select, button')) return;
+                    const col = th.dataset.sort;
+                    if (!col) return;
+                    if (currentMatSortCol === col) {
+                        currentMatSortDir = (currentMatSortDir === 'asc' ? 'desc' : 'asc');
+                    } else {
+                        currentMatSortCol = col;
+                        currentMatSortDir = 'asc';
+                    }
+                    updateSortHeaders();
+                    applyFiltersAndSort();
+                });
+            });
+
+            // Column filter input events
+            panelMaterial.querySelectorAll('.mat-col-filter-input').forEach(inp => {
+                inp.addEventListener('input', () => {
+                    const col = inp.dataset.filterCol;
+                    if (col) {
+                        activeMatColFilters[col] = inp.value.trim();
+                        applyFiltersAndSort();
+                    }
+                });
+            });
+
+            // Column filter select dropdown events
+            panelMaterial.querySelectorAll('.mat-col-filter-select').forEach(sel => {
+                sel.addEventListener('change', () => {
+                    const col = sel.dataset.filterCol;
+                    if (col) {
+                        activeMatColFilters[col] = sel.value.trim();
+                        applyFiltersAndSort();
+                    }
+                });
+            });
+
+            // Clear all column filters button
+            const clearBtn = panelMaterial.querySelector('#btnClearMatFilters');
+            if (clearBtn) {
+                clearBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    Object.keys(activeMatColFilters).forEach(k => activeMatColFilters[k] = '');
+                    panelMaterial.querySelectorAll('.mat-col-filter-input').forEach(i => { i.value = ''; });
+                    panelMaterial.querySelectorAll('.mat-col-filter-select').forEach(s => { s.value = ''; });
+                    applyFiltersAndSort();
+                });
+            }
+
+            // Global search input
+            const searchInput = panelMaterial.querySelector('.mat-search-input');
+            if (searchInput) {
+                searchInput.addEventListener('input', () => {
+                    activeGlobalSearch = searchInput.value.toLowerCase().trim();
+                    applyFiltersAndSort();
+                });
+            }
+
+            // Initial render
+            renderMatPage(1);
+        }
+    }
+
+    async function loadDrawerMaterial(record, forceReload = false, mode = 'material') {
+        if (!record) return;
+        const mat = String(record.material || '3H001262051').trim();
+        const cacheKey = (mode === 'date_range') ? '__date_range_sep2026__' : mat;
+
+        if (!forceReload && matCacheByMat[cacheKey]) {
+            renderMaterialPanel(record, false, null, matCacheByMat[cacheKey].data, matCacheByMat[cacheKey].raw, mode);
+            if (dncMaterialVal && mode === 'date_range') {
+                dncMaterialVal.textContent = `${matCacheByMat[cacheKey].data.length} materials`;
+            }
+            return;
+        }
+
+        renderMaterialPanel(record, true, null, null, null, mode);
+
+        const endpoint = cfg.materialApiUrl || '/sales/material-api';
+        const query = (mode === 'date_range')
+            ? 'date_range=1'
+            : `material=${encodeURIComponent(mat)}`;
+
+        try {
+            const res = await fetch(`${endpoint}?${query}&_=${Date.now()}`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to load material data`);
+            const payload = await res.json();
+            if (payload.status === 'error' || !payload.data) {
+                const err = payload.error || 'No material records returned from SAP';
+                matCacheByMat[cacheKey] = { data: [], raw: payload };
+                renderMaterialPanel(record, false, err, [], payload, mode);
+            } else {
+                matCacheByMat[cacheKey] = { data: payload.data, raw: payload };
+                renderMaterialPanel(record, false, null, payload.data, payload, mode);
+                if (dncMaterialVal && mode === 'date_range') {
+                    dncMaterialVal.textContent = `${payload.data.length} materials`;
+                }
+            }
+        } catch (err) {
+            renderMaterialPanel(record, false, err.message, [], null, mode);
+        }
+    }
+
+    /* ==========================================================================
+       Procurement Panel & SAP Live Data Loader (ZBUSINESS_API_SRV)
+    ========================================================================== */
+
+    function renderProcurementPanel(record, isLoading = false, error = null, procData = null, rawPayload = null) {
+        if (!panelProcurement) return;
+        const so = String(record?.sales_order || '4203').trim();
+
+        if (isLoading) {
+            panelProcurement.innerHTML = `
+                <div class="drawer-section-card" style="text-align:center;padding:3.5rem 1rem;background:#fff;border:1px solid #e2e8f0;border-radius:0.75rem">
+                    <div class="sales-loader-ring" style="margin:0 auto 1.25rem;width:42px;height:42px;border-width:3.5px;border-top-color:#4f46e5"></div>
+                    <strong style="font-size:1rem;color:#0f172a;display:block;margin-bottom:0.35rem">Connecting to SAP Procurement Dashboard</strong>
+                    <span style="font-size:0.82rem;color:#64748b">Fetching live PR, PO, Stock & Demand records for Sales Doc #${escapeHtml(so)}…</span>
+                </div>
+            `;
+            return;
+        }
+
+        if (error) {
+            panelProcurement.innerHTML = `
+                <div class="drawer-section-card" style="text-align:center;padding:2.5rem 1rem;background:#fff;border:1px solid #e2e8f0;border-radius:0.75rem">
+                    <span class="material-icons-round" style="font-size:2.6rem;color:#ef4444;margin-bottom:0.6rem;display:block">error_outline</span>
+                    <div style="font-size:1rem;font-weight:700;color:#0f172a;margin-bottom:0.35rem">SAP Procurement Notice</div>
+                    <div style="color:#64748b;font-size:0.85rem;margin-bottom:1.25rem">${escapeHtml(error)}</div>
+                    <button type="button" class="btn-drawer-retry-proc" style="padding:0.5rem 1.2rem;background:#4f46e5;color:#fff;border:none;border-radius:0.55rem;font-weight:700;font-size:0.85rem;cursor:pointer;display:inline-flex;align-items:center;gap:0.4rem">
+                        <span class="material-icons-round" style="font-size:1rem">sync</span> Retry SAP Sync
+                    </button>
+                </div>
+            `;
+            const retryBtn = panelProcurement.querySelector('.btn-drawer-retry-proc');
+            if (retryBtn) {
+                retryBtn.addEventListener('click', () => loadDrawerProcurement(record, true));
+            }
+            return;
+        }
+
+        const comps = procData || [];
+        const first = comps[0] || {};
+        const parentMat = record?.material || first.Material || '—';
+        const parentDesc = record?.style || record?.material_description || first.MaterialDescription || '—';
+
+        let totalReq = 0, totalPR = 0, totalPO = 0, totalStock = 0;
+        const groupCounts = {};
+        comps.forEach(c => {
+            totalReq += parseFloat(String(c.RequirementQty || c.RequiredQuantity || 0).replace(/\s+/g, '')) || 0;
+            totalPR += parseFloat(String(c.TotalPRQty || c.TotalPRQuantity || 0).replace(/\s+/g, '')) || 0;
+            totalPO += parseFloat(String(c.TotalPOQty || c.TotalPOQuantity || 0).replace(/\s+/g, '')) || 0;
+            totalStock += parseFloat(String(c.StockQty || c.StockQuantity || 0).replace(/\s+/g, '')) || 0;
+            const g = String(c.MaterialGroup || '').trim();
+            if (g) groupCounts[g] = (groupCounts[g] || 0) + 1;
+        });
+
+        const prCoveragePct = totalReq > 0 ? Math.min(100, Math.round((totalPR / totalReq) * 100)) : (totalPR > 0 ? 100 : 0);
+        const poFulfillPct = totalReq > 0 ? Math.min(100, Math.round((totalPO / totalReq) * 100)) : (totalPO > 0 ? 100 : 0);
+        const uniqueGroups = Object.keys(groupCounts);
+
+        panelProcurement.innerHTML = `
+            <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:0.85rem;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.03)">
+                <!-- Top Info Bar -->
+                <div class="procurement-modal-header" style="background:#ffffff;border-bottom:1px solid #e2e8f0;padding:0.9rem 1.35rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.75rem">
+                    <div style="display:flex;align-items:center;gap:0.85rem;flex-wrap:wrap">
+                        <div class="proc-header-icon" style="background:linear-gradient(135deg,#4f46e5,#6366f1);color:#fff;width:40px;height:40px;border-radius:0.65rem;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 8px rgba(79,70,229,0.25)">
+                            <span class="material-icons-round" style="font-size:1.35rem;color:#fff">local_shipping</span>
+                        </div>
+                        <div style="display:flex;flex-direction:column;gap:0.22rem">
+                            <div style="display:flex;align-items:center;gap:0.55rem;flex-wrap:wrap">
+                                <span style="font-size:1.05rem;font-weight:800;color:#0f172a">Procurement &amp; Demand Overview</span>
+                                <span class="proc-pill proc-pill-so" style="background:#f1f5f9;color:#334155;border:1px solid #cbd5e1;border-radius:9999px;padding:0.18rem 0.65rem;font-size:0.75rem;font-weight:700">
+                                    Sales Doc #<strong style="color:#0f172a">${escapeHtml(so)}</strong>
+                                </span>
+                                <span class="proc-pill proc-pill-live" style="background:#ecfdf5;color:#059669;border:1px solid #a7f3d0;border-radius:9999px;padding:0.18rem 0.65rem;font-size:0.72rem;font-weight:700;display:inline-flex;align-items:center;gap:0.3rem">
+                                    <span class="pulse-dot"></span> Live SAP OData
+                                </span>
+                            </div>
+                            <div class="procurement-subtitle" style="font-size:0.8rem;color:#64748b;display:flex;align-items:center;gap:0.4rem;flex-wrap:wrap">
+                                <span class="mat-label" style="font-size:0.7rem;font-weight:700;color:#94a3b8;letter-spacing:0.04em">ORDER MATERIAL:</span>
+                                <strong style="color:#0f172a;font-weight:700">${escapeHtml(parentMat)}</strong>
+                                <span class="mat-sep" style="color:#cbd5e1">·</span>
+                                <span>${escapeHtml(parentDesc)}</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="procurement-header-actions" style="display:flex;align-items:center;gap:0.5rem">
+                        <button type="button" class="proc-btn-header btn-proc-sync" title="Sync live data from SAP" style="display:inline-flex;align-items:center;gap:0.35rem;padding:0.45rem 1rem;background:#ffffff;border:1px solid #cbd5e1;border-radius:0.55rem;font-size:0.8rem;font-weight:700;color:#334155;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,0.03)">
+                            <span class="material-icons-round" style="font-size:1.05rem;color:#4f46e5">sync</span>
+                            <span>Sync</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 5 Executive Modern KPI Metric Cards -->
+                <div class="procurement-cards-grid">
+                    <div class="proc-stat-card tone-indigo">
+                        <div class="proc-stat-top">
+                            <span class="proc-stat-lbl">Components</span>
+                            <div class="proc-stat-icon-wrap">
+                                <span class="material-icons-round">category</span>
+                            </div>
+                        </div>
+                        <div class="proc-stat-num"><b>${comps.length}</b><span class="proc-stat-unit">items</span></div>
+                        <div class="proc-stat-sub">Bill of Materials</div>
+                    </div>
+
+                    <div class="proc-stat-card tone-cyan">
+                        <div class="proc-stat-top">
+                            <span class="proc-stat-lbl">Required Demand</span>
+                            <div class="proc-stat-icon-wrap">
+                                <span class="material-icons-round">assignment_turned_in</span>
+                            </div>
+                        </div>
+                        <div class="proc-stat-num"><b>${fmtNum(totalReq)}</b></div>
+                        <div class="proc-stat-sub">Production Demand</div>
+                    </div>
+
+                    <div class="proc-stat-card tone-amber">
+                        <div class="proc-stat-top">
+                            <span class="proc-stat-lbl">Total PR Qty</span>
+                            <div class="proc-stat-icon-wrap">
+                                <span class="material-icons-round">receipt_long</span>
+                            </div>
+                        </div>
+                        <div class="proc-stat-num"><b>${fmtNum(totalPR)}</b></div>
+                        <div class="proc-stat-sub">Purchase Requisitions</div>
+                    </div>
+
+                    <div class="proc-stat-card tone-emerald">
+                        <div class="proc-stat-top">
+                            <span class="proc-stat-lbl">Total PO Qty</span>
+                            <div class="proc-stat-icon-wrap">
+                                <span class="material-icons-round">local_shipping</span>
+                            </div>
+                        </div>
+                        <div class="proc-stat-num"><b>${fmtNum(totalPO)}</b></div>
+                        <div class="proc-stat-sub">Purchase Orders</div>
+                    </div>
+
+                    <div class="proc-stat-card tone-purple">
+                        <div class="proc-stat-top">
+                            <span class="proc-stat-lbl">Stock Available</span>
+                            <div class="proc-stat-icon-wrap">
+                                <span class="material-icons-round">warehouse</span>
+                            </div>
+                        </div>
+                        <div class="proc-stat-num"><b>${fmtNum(totalStock)}</b></div>
+                        <div class="proc-stat-sub">Free Inventory</div>
+                    </div>
+                </div>
+
+                <!-- Supply Chain Flow & Progress Pipeline Strip -->
+                <div class="proc-pipeline-strip">
+                    <div class="proc-pipeline-flow">
+                        <span class="proc-flow-node stage-req"><span class="material-icons-round" style="font-size:14px">assignment</span> Demand: ${fmtNum(totalReq)}</span>
+                        <span class="proc-flow-arrow material-icons-round">chevron_right</span>
+                        <span class="proc-flow-node stage-pr"><span class="material-icons-round" style="font-size:14px">receipt</span> PR: ${fmtNum(totalPR)}</span>
+                        <span class="proc-flow-arrow material-icons-round">chevron_right</span>
+                        <span class="proc-flow-node stage-po"><span class="material-icons-round" style="font-size:14px">local_shipping</span> PO: ${fmtNum(totalPO)}</span>
+                        <span class="proc-flow-arrow material-icons-round">chevron_right</span>
+                        <span class="proc-flow-node stage-stk"><span class="material-icons-round" style="font-size:14px">warehouse</span> Stock: ${fmtNum(totalStock)}</span>
+                    </div>
+                    <div class="proc-pipeline-metrics">
+                        ${comps.length > 0 ? `
+                            <span class="proc-progress-chip" title="PR Coverage vs Demand">
+                                <span style="font-size:0.72rem;color:#64748b">PR Coverage:</span>
+                                <strong style="color:${prCoveragePct >= 100 ? '#059669' : '#d97706'}">${prCoveragePct}%</strong>
+                            </span>
+                            <span class="proc-progress-chip" title="PO Fulfillment vs Demand">
+                                <span style="font-size:0.72rem;color:#64748b">PO Fulfilled:</span>
+                                <strong style="color:${poFulfillPct >= 100 ? '#059669' : '#4f46e5'}">${poFulfillPct}%</strong>
+                            </span>
+                        ` : `
+                            <span class="proc-progress-chip" style="color:#64748b">
+                                <span class="material-icons-round" style="font-size:14px;color:#94a3b8">info</span> No active procurement records in SAP
+                            </span>
+                        `}
+                    </div>
+                </div>
+
+                ${comps.length === 0 ? `
+                    <!-- Modern Dedicated Empty State Card (No ugly empty table / scrollbar) -->
+                    <div class="proc-empty-state-card">
+                        <div class="proc-empty-icon-wrap">
+                            <span class="material-icons-round" style="font-size:1.85rem">inventory_2</span>
+                        </div>
+                        <h3 class="proc-empty-title">No Procurement Demand Records Found</h3>
+                        <p class="proc-empty-desc">
+                            SAP ZBUSINESS_API_SRV returned 0 procurement components or purchase requisitions for Sales Doc #<strong style="color:#0f172a">${escapeHtml(so)}</strong>.
+                        </p>
+                        <div class="proc-empty-actions">
+                            <button type="button" class="btn-proc-empty-sync" style="padding:0.48rem 1.15rem;border-radius:0.55rem;background:#4f46e5;color:#fff;border:none;font-weight:700;font-size:0.82rem;cursor:pointer;display:inline-flex;align-items:center;gap:0.4rem;box-shadow:0 2px 5px rgba(79,70,229,0.25)">
+                                <span class="material-icons-round" style="font-size:1rem">sync</span> Sync from SAP
+                            </button>
+                            <button type="button" class="btn-proc-goto-bom" style="padding:0.48rem 1.15rem;border-radius:0.55rem;background:#ffffff;color:#334155;border:1px solid #cbd5e1;font-weight:700;font-size:0.82rem;cursor:pointer;display:inline-flex;align-items:center;gap:0.4rem">
+                                <span class="material-icons-round" style="font-size:1rem;color:#d97706">schema</span> View BOM Components
+                            </button>
+                            <button type="button" class="btn-proc-goto-planning" style="padding:0.48rem 1.15rem;border-radius:0.55rem;background:#ffffff;color:#334155;border:1px solid #cbd5e1;font-weight:700;font-size:0.82rem;cursor:pointer;display:inline-flex;align-items:center;gap:0.4rem">
+                                <span class="material-icons-round" style="font-size:1rem;color:#0284c7">calendar_today</span> View Planning Schedule
+                            </button>
+                        </div>
+                    </div>
+                ` : `
+                    <!-- Clean Toolbar: Search & Dynamic Group Filter Pills -->
+                    <div class="procurement-toolbar">
+                        <div class="procurement-search-wrap">
+                            <span class="material-icons-round">search</span>
+                            <input type="search" class="proc-search-input" placeholder="Search material code, description, shade..." autocomplete="off">
+                            <button type="button" class="proc-search-clear" style="display:none" aria-label="Clear search" title="Clear search">
+                                <span class="material-icons-round">close</span>
+                            </button>
+                        </div>
+                        <div class="procurement-group-filters">
+                            <button type="button" class="proc-filter-pill active" data-group="all">All <span class="pill-cnt">${comps.length}</span></button>
+                            ${uniqueGroups.map(grp => `
+                                <button type="button" class="proc-filter-pill" data-group="${escapeHtml(grp.toLowerCase())}">
+                                    ${escapeHtml(grp)} <span class="pill-cnt">${groupCounts[grp]}</span>
+                                </button>
+                            `).join('')}
+                        </div>
+                        <div class="procurement-count-badge" id="procFilteredBadge">${comps.length} of ${comps.length} items</div>
+                    </div>
+
+                    <!-- Main Content: Data Table & Nested PR Drawer -->
+                    <div class="procurement-content-body" style="position:relative;overflow:hidden">
+                        <div class="procurement-table-scroll" style="max-height:none;overflow-x:auto">
+                            <table class="drawer-components-table procurement-table table-bordered">
+                                <thead>
+                                    <tr class="proc-header-row">
+                                        <th class="col-sortable" data-sort="ComponentMaterial" title="Click to sort by Material" style="min-width:180px">
+                                            <div class="th-sort-wrap">
+                                                <span>COMPONENT MATERIAL</span>
+                                                <span class="sort-icon material-icons-round">unfold_more</span>
+                                            </div>
+                                        </th>
+                                        <th class="col-sortable" data-sort="ComponentDescription" title="Click to sort by Description" style="min-width:260px">
+                                            <div class="th-sort-wrap">
+                                                <span>DESCRIPTION</span>
+                                                <span class="sort-icon material-icons-round">unfold_more</span>
+                                            </div>
+                                        </th>
+                                        <th class="col-sortable col-center" data-sort="MaterialGroup" title="Click to sort by Group" style="text-align:center;min-width:105px">
+                                            <div class="th-sort-wrap th-sort-center">
+                                                <span>GROUP</span>
+                                                <span class="sort-icon material-icons-round">unfold_more</span>
+                                            </div>
+                                        </th>
+                                        <th class="col-sortable col-num" data-sort="RequirementQty" title="Click to sort by Req Qty" style="text-align:right;min-width:110px">
+                                            <div class="th-sort-wrap th-sort-right">
+                                                <span>REQ QTY</span>
+                                                <span class="sort-icon material-icons-round">unfold_more</span>
+                                            </div>
+                                        </th>
+                                        <th class="col-sortable col-num" data-sort="TotalPRQty" title="Click to sort by Total PR Qty" style="text-align:right;min-width:125px">
+                                            <div class="th-sort-wrap th-sort-right">
+                                                <span>TOTAL PR QTY</span>
+                                                <span class="sort-icon material-icons-round">unfold_more</span>
+                                            </div>
+                                        </th>
+                                        <th class="col-sortable col-num" data-sort="TotalPOQty" title="Click to sort by Total PO Qty" style="text-align:right;min-width:125px">
+                                            <div class="th-sort-wrap th-sort-right">
+                                                <span>TOTAL PO QTY</span>
+                                                <span class="sort-icon material-icons-round">unfold_more</span>
+                                            </div>
+                                        </th>
+                                        <th class="col-sortable col-num" data-sort="BalancePRQty" title="Click to sort by Balance PR" style="text-align:right;min-width:125px">
+                                            <div class="th-sort-wrap th-sort-right">
+                                                <span>BALANCE PR</span>
+                                                <span class="sort-icon material-icons-round">unfold_more</span>
+                                            </div>
+                                        </th>
+                                        <th class="col-sortable col-num" data-sort="StockQty" title="Click to sort by Stock Available" style="text-align:right;min-width:120px">
+                                            <div class="th-sort-wrap th-sort-right">
+                                                <span>STOCK</span>
+                                                <span class="sort-icon material-icons-round">unfold_more</span>
+                                            </div>
+                                        </th>
+                                    </tr>
+                                    <tr class="mat-col-filter-row proc-col-filter-row">
+                                        <th><input type="text" class="mat-col-filter-input proc-col-filter" data-col="ComponentMaterial" placeholder="Filter code..."/></th>
+                                        <th><input type="text" class="mat-col-filter-input proc-col-filter" data-col="ComponentDescription" placeholder="Filter desc/shade..."/></th>
+                                        <th><input type="text" class="mat-col-filter-input proc-col-filter" data-col="MaterialGroup" placeholder="Filter group..." style="text-align:center"/></th>
+                                        <th><input type="text" class="mat-col-filter-input proc-col-filter" data-col="RequirementQty" placeholder="Min req..." style="text-align:right"/></th>
+                                        <th><input type="text" class="mat-col-filter-input proc-col-filter" data-col="TotalPRQty" placeholder="Min PR..." style="text-align:right"/></th>
+                                        <th><input type="text" class="mat-col-filter-input proc-col-filter" data-col="TotalPOQty" placeholder="Min PO..." style="text-align:right"/></th>
+                                        <th><input type="text" class="mat-col-filter-input proc-col-filter" data-col="BalancePRQty" placeholder="Min bal..." style="text-align:right"/></th>
+                                        <th>
+                                            <div style="display:flex;align-items:center;gap:0.25rem">
+                                                <input type="text" class="mat-col-filter-input proc-col-filter" data-col="StockQty" placeholder="Min stock..." style="text-align:right"/>
+                                                <button type="button" class="btn-clear-mat-filters" id="btnClearDrawerProcFilters" title="Clear all column filters">
+                                                    <span class="material-icons-round" style="font-size:13px">clear</span>
+                                                </button>
+                                            </div>
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody id="drawerProcTableBody">
+                                    <!-- injected by renderPage() -->
+                                </tbody>
+                            </table>
+                        </div>
+
+                        <!-- Pagination -->
+                        <div class="bom-pagination-wrap" style="display:flex;align-items:center;justify-content:space-between;padding:0.85rem 1.25rem;border-top:1px solid #e2e8f0;background:#ffffff;font-size:0.82rem;color:#64748b">
+                            <div id="drawerProcPaginationInfo">Showing 1 to 20 of ${comps.length} components</div>
+                            <div id="drawerProcPaginationBtns" style="display:flex;gap:0.35rem"></div>
+                        </div>
+
+                        <!-- PR Drilldown Drawer Backdrop -->
+                        <div class="drawer-proc-pr-backdrop" id="drawerProcPrBackdrop"></div>
+
+                        <!-- Nested PR Set Drilldown Drawer inside Subdrawer Panel -->
+                        <div class="procurement-pr-drawer" id="drawerProcPrDrawer" aria-hidden="true">
+                            <div class="pr-drawer-header">
+                                <div>
+                                    <span class="pr-drawer-eyebrow"><span class="material-icons-round" style="font-size:14px;vertical-align:-1px">receipt_long</span> PR &amp; PO Details</span>
+                                    <h3 id="drawerPrDrawerTitle" style="margin:0.2rem 0 0;font-size:1.05rem;font-weight:700;color:#0f172a">PR Set</h3>
+                                    <p id="drawerPrDrawerSubtitle" class="pr-drawer-sub" style="margin:0.15rem 0 0;font-size:0.78rem;color:#64748b"></p>
+                                </div>
+                                <button type="button" class="icon-btn" id="drawerPrDrawerClose" aria-label="Close PR Drawer" style="border:none;background:none;cursor:pointer;color:#64748b;padding:0.25rem;border-radius:0.35rem">
+                                    <span class="material-icons-round" style="font-size:1.25rem">close</span>
+                                </button>
+                            </div>
+                            <div class="pr-drawer-body" id="drawerPrDrawerBody" style="padding:1.25rem;overflow-y:auto;flex:1">
+                                <div class="loading-state">Loading ProcurementPRSet from SAP...</div>
+                            </div>
+                        </div>
+                    </div>
+                `}
+            </div>
+        `;
+
+        // Interactive State
+        const PAGE_SIZE = 20;
+        let currentProcPage = 1;
+        let currentProcSortCol = null;
+        let currentProcSortDir = 'asc';
+        let activeGroupFilter = 'all';
+        let activeGlobalSearch = '';
+        const activeColFilters = {
+            ComponentMaterial: '',
+            ComponentDescription: '',
+            MaterialGroup: '',
+            RequirementQty: '',
+            TotalPRQty: '',
+            TotalPOQty: '',
+            BalancePRQty: '',
+            StockQty: ''
+        };
+        let activeFilteredComps = comps.slice();
+
+        function applyFiltersAndSort() {
+            let filtered = comps.filter(c => {
+                // 1. Group filter pill
+                if (activeGroupFilter !== 'all') {
+                    const grp = String(c.MaterialGroup || '').toLowerCase();
+                    if (!grp.includes(activeGroupFilter)) return false;
+                }
+                // 2. Global search
+                if (activeGlobalSearch) {
+                    const mat = String(c.ComponentMaterial || '').toLowerCase();
+                    const desc = String(c.ComponentDescription || c.ComponentMaterialDesc || '').toLowerCase();
+                    const grp = String(c.MaterialGroup || '').toLowerCase();
+                    const shade = String(c.ShadeText1 || '').toLowerCase();
+                    if (!mat.includes(activeGlobalSearch) && !desc.includes(activeGlobalSearch) && !grp.includes(activeGlobalSearch) && !shade.includes(activeGlobalSearch)) {
+                        return false;
+                    }
+                }
+                // 3. Column filters
+                if (activeColFilters.ComponentMaterial) {
+                    const m = String(c.ComponentMaterial || '').toLowerCase();
+                    if (!m.includes(activeColFilters.ComponentMaterial.toLowerCase())) return false;
+                }
+                if (activeColFilters.ComponentDescription) {
+                    const d = String(c.ComponentDescription || c.ComponentMaterialDesc || '').toLowerCase();
+                    const s = String(c.ShadeText1 || '').toLowerCase();
+                    const query = activeColFilters.ComponentDescription.toLowerCase();
+                    if (!d.includes(query) && !s.includes(query)) return false;
+                }
+                if (activeColFilters.MaterialGroup) {
+                    const g = String(c.MaterialGroup || '').toLowerCase();
+                    if (!g.includes(activeColFilters.MaterialGroup.toLowerCase())) return false;
+                }
+                if (activeColFilters.RequirementQty) {
+                    const minVal = parseFloat(activeColFilters.RequirementQty);
+                    const val = parseFloat(String(c.RequirementQty || c.RequiredQuantity || 0).replace(/\s+/g, '')) || 0;
+                    if (!isNaN(minVal) && val < minVal) return false;
+                }
+                if (activeColFilters.TotalPRQty) {
+                    const minVal = parseFloat(activeColFilters.TotalPRQty);
+                    const val = parseFloat(String(c.TotalPRQty || c.TotalPRQuantity || 0).replace(/\s+/g, '')) || 0;
+                    if (!isNaN(minVal) && val < minVal) return false;
+                }
+                if (activeColFilters.TotalPOQty) {
+                    const minVal = parseFloat(activeColFilters.TotalPOQty);
+                    const val = parseFloat(String(c.TotalPOQty || c.TotalPOQuantity || 0).replace(/\s+/g, '')) || 0;
+                    if (!isNaN(minVal) && val < minVal) return false;
+                }
+                if (activeColFilters.BalancePRQty) {
+                    const minVal = parseFloat(activeColFilters.BalancePRQty);
+                    const val = parseFloat(String(c.BalancePRQty || 0).replace(/\s+/g, '')) || 0;
+                    if (!isNaN(minVal) && val < minVal) return false;
+                }
+                if (activeColFilters.StockQty) {
+                    const minVal = parseFloat(activeColFilters.StockQty);
+                    const val = parseFloat(String(c.StockQty || c.StockQuantity || 0).replace(/\s+/g, '')) || 0;
+                    if (!isNaN(minVal) && val < minVal) return false;
+                }
+                return true;
+            });
+
+            if (currentProcSortCol) {
+                filtered.sort((a, b) => {
+                    const numCols = ['RequirementQty', 'TotalPRQty', 'TotalPOQty', 'BalancePRQty', 'StockQty'];
+                    if (numCols.includes(currentProcSortCol)) {
+                        let vA = parseFloat(String(a[currentProcSortCol] || (currentProcSortCol === 'RequirementQty' ? a.RequiredQuantity : (currentProcSortCol === 'TotalPRQty' ? a.TotalPRQuantity : (currentProcSortCol === 'TotalPOQty' ? a.TotalPOQuantity : a.StockQuantity))) || 0).replace(/\s+/g, '')) || 0;
+                        let vB = parseFloat(String(b[currentProcSortCol] || (currentProcSortCol === 'RequirementQty' ? b.RequiredQuantity : (currentProcSortCol === 'TotalPRQty' ? b.TotalPRQuantity : (currentProcSortCol === 'TotalPOQty' ? b.TotalPOQuantity : b.StockQuantity))) || 0).replace(/\s+/g, '')) || 0;
+                        return currentProcSortDir === 'asc' ? vA - vB : vB - vA;
+                    }
+                    const vA = String(a[currentProcSortCol] || '').toLowerCase();
+                    const vB = String(b[currentProcSortCol] || '').toLowerCase();
+                    const cmp = vA.localeCompare(vB, undefined, { numeric: true });
+                    return currentProcSortDir === 'asc' ? cmp : -cmp;
+                });
+            }
+
+            activeFilteredComps = filtered;
+            renderPage(1);
+
+            const countBadge = panelProcurement.querySelector('#procFilteredBadge');
+            if (countBadge) {
+                countBadge.textContent = `${activeFilteredComps.length} of ${comps.length} items`;
+            }
+        }
+
+        function updateSortHeaders() {
+            panelProcurement.querySelectorAll('.procurement-table thead th.col-sortable').forEach(th => {
+                const col = th.dataset.sort;
+                const icon = th.querySelector('.sort-icon');
+                th.classList.remove('is-sorted-asc', 'is-sorted-desc');
+                if (col === currentProcSortCol) {
+                    th.classList.add(currentProcSortDir === 'asc' ? 'is-sorted-asc' : 'is-sorted-desc');
+                    if (icon) icon.textContent = (currentProcSortDir === 'asc' ? 'arrow_upward' : 'arrow_downward');
+                } else {
+                    if (icon) icon.textContent = 'unfold_more';
+                }
+            });
+        }
+
+        function renderPage(page) {
+            const totalItems = activeFilteredComps.length;
+            const totalPages = Math.ceil(totalItems / PAGE_SIZE) || 1;
+            currentProcPage = Math.max(1, Math.min(page, totalPages));
+
+            const startIdx = (currentProcPage - 1) * PAGE_SIZE;
+            const endIdx = Math.min(startIdx + PAGE_SIZE, totalItems);
+            const pageData = activeFilteredComps.slice(startIdx, endIdx);
+
+            const tbodyEl = panelProcurement.querySelector('#drawerProcTableBody');
+            const infoEl = panelProcurement.querySelector('#drawerProcPaginationInfo');
+            const btnsEl = panelProcurement.querySelector('#drawerProcPaginationBtns');
+
+            if (!tbodyEl) return;
+
+            if (!pageData.length) {
+                tbodyEl.innerHTML = `
+                    <tr>
+                        <td colspan="8" class="empty-state" style="text-align:center;padding:3rem 1rem;color:#64748b">
+                            ${comps.length ? 'No components match your search or filter criteria.' : 'No procurement components found in SAP for this sales doc.'}
+                        </td>
+                    </tr>
+                `;
+            } else {
+                tbodyEl.innerHTML = pageData.map((r, i) => {
+                    const req = parseFloat(String(r.RequirementQty || r.RequiredQuantity || '0').replace(/\s+/g, '')) || 0;
+                    const pr = parseFloat(String(r.TotalPRQty || r.TotalPRQuantity || '0').replace(/\s+/g, '')) || 0;
+                    const po = parseFloat(String(r.TotalPOQty || r.TotalPOQuantity || '0').replace(/\s+/g, '')) || 0;
+                    const bal = parseFloat(String(r.BalancePRQty || (pr - po) || '0').replace(/\s+/g, '')) || 0;
+                    const stock = parseFloat(String(r.StockQty || r.StockQuantity || '0').replace(/\s+/g, '')) || 0;
+                    const balBadgeHtml = (bal === 0)
+                        ? '<span class="proc-bal-badge bal-zero">Balanced (0)</span>'
+                        : (bal < 0
+                            ? `<span class="proc-bal-badge bal-neg">${fmtNum(bal)} (Over)</span>`
+                            : `<span class="proc-bal-badge bal-pos">${fmtNum(bal)}</span>`);
+
+                    return `
+                        <tr class="proc-row" data-page-idx="${i}" tabindex="0" role="button" title="Click to view PR & PO details">
+                            <td>
+                                <span class="proc-comp-badge" style="font-family:monospace;font-weight:700">${escapeHtml(r.ComponentMaterial || '—')}</span>
+                            </td>
+                            <td>
+                                <div class="proc-desc-cell">
+                                    <span class="proc-desc-name" style="font-weight:600;color:#0f172a">${escapeHtml(r.ComponentDescription || r.ComponentMaterialDesc || '—')}</span>
+                                    ${r.ShadeText1 ? `<span class="proc-desc-shade" style="display:inline-flex;align-items:center;gap:0.25rem;color:#64748b;font-size:0.75rem;margin-top:2px"><span class="material-icons-round" style="font-size:12px;color:#d97706">palette</span> Shade: ${escapeHtml(r.ShadeText1)}</span>` : ''}
+                                </div>
+                            </td>
+                            <td style="text-align:center"><span class="proc-tag ${groupTagClass(r.MaterialGroup)}">${escapeHtml(r.MaterialGroup || '—')}</span></td>
+                            <td class="col-num" style="text-align:right">${fmtNum(req)}</td>
+                            <td class="col-num" style="text-align:right;font-weight:600;color:#0f172a">${fmtNum(pr)}</td>
+                            <td class="col-num" style="text-align:right;font-weight:600;color:#059669">${fmtNum(po)}</td>
+                            <td class="col-num" style="text-align:right">${balBadgeHtml}</td>
+                            <td class="col-num" style="text-align:right;font-weight:600;color:#0284c7">${stock > 0 ? fmtNum(stock) : '—'}</td>
+                        </tr>
+                    `;
+                }).join('');
+
+                // Row click for PR drawer
+                tbodyEl.querySelectorAll('.proc-row').forEach((row, idx) => {
+                    const item = pageData[idx];
+                    row.addEventListener('click', () => {
+                        tbodyEl.querySelectorAll('.proc-row').forEach(r => r.classList.remove('active'));
+                        row.classList.add('active');
+                        openDrawerPRSet(item);
+                    });
+                });
+            }
+
+            if (infoEl) {
+                infoEl.textContent = totalItems
+                    ? `Showing ${startIdx + 1} to ${endIdx} of ${totalItems} components`
+                    : 'Showing 0 components';
+            }
+
+            if (btnsEl) {
+                btnsEl.innerHTML = '';
+                if (totalPages > 1) {
+                    const prevBtn = document.createElement('button');
+                    prevBtn.type = 'button';
+                    prevBtn.className = 'bom-page-btn';
+                    prevBtn.disabled = (currentProcPage === 1);
+                    prevBtn.innerHTML = '<span class="material-icons-round" style="font-size:14px">chevron_left</span>';
+                    prevBtn.title = 'Previous page';
+                    prevBtn.addEventListener('click', () => renderPage(currentProcPage - 1));
+                    btnsEl.appendChild(prevBtn);
+
+                    const maxDisplayPages = 5;
+                    let startP = Math.max(1, currentProcPage - 2);
+                    let endP = Math.min(totalPages, startP + maxDisplayPages - 1);
+                    if (endP - startP < maxDisplayPages - 1) {
+                        startP = Math.max(1, endP - maxDisplayPages + 1);
+                    }
+
+                    for (let p = startP; p <= endP; p++) {
+                        const pBtn = document.createElement('button');
+                        pBtn.type = 'button';
+                        pBtn.className = `bom-page-btn ${p === currentProcPage ? 'active' : ''}`;
+                        pBtn.textContent = p;
+                        pBtn.addEventListener('click', () => renderPage(p));
+                        btnsEl.appendChild(pBtn);
+                    }
+
+                    const nextBtn = document.createElement('button');
+                    nextBtn.type = 'button';
+                    nextBtn.className = 'bom-page-btn';
+                    nextBtn.disabled = (currentProcPage === totalPages);
+                    nextBtn.innerHTML = '<span class="material-icons-round" style="font-size:14px">chevron_right</span>';
+                    nextBtn.title = 'Next page';
+                    nextBtn.addEventListener('click', () => renderPage(currentProcPage + 1));
+                    btnsEl.appendChild(nextBtn);
+                }
+            }
+        }
+
+        async function openDrawerPRSet(item) {
+            const prDrawer = panelProcurement.querySelector('#drawerProcPrDrawer');
+            const prBackdrop = panelProcurement.querySelector('#drawerProcPrBackdrop');
+            const prTitle = panelProcurement.querySelector('#drawerPrDrawerTitle');
+            const prSub = panelProcurement.querySelector('#drawerPrDrawerSubtitle');
+            const prBody = panelProcurement.querySelector('#drawerPrDrawerBody');
+            if (!prDrawer) return;
+
+            prDrawer.classList.add('open');
+            prDrawer.setAttribute('aria-hidden', 'false');
+            if (prBackdrop) prBackdrop.classList.add('open');
+
+            if (prTitle) prTitle.textContent = item.ComponentMaterial || '—';
+            if (prSub) prSub.textContent = item.ComponentDescription || item.ComponentMaterialDesc || '';
+
+            const uri = item.ProcurementPRSet?.__deferred?.uri
+                || `http://app-prod.evolvclothing.com:8000/sap/opu/odata/sap/ZBUSINESS_API_SRV/ProcurementDashboardSet(SalesDoc='${item.SalesDoc || so}',ComponentMaterial='${encodeURIComponent(item.ComponentMaterial)}')/ProcurementPRSet`;
+
+            if (prBody) {
+                prBody.innerHTML = `
+                    <div style="padding:2.5rem 1rem;text-align:center;color:#64748b">
+                        <div class="sales-loader-ring" style="margin:0 auto 1rem;width:28px;height:28px;border-width:3px"></div>
+                        <div style="font-weight:600;color:#0f172a">Calling SAP ProcurementPRSet…</div>
+                        <small style="color:#94a3b8;font-size:0.75rem;margin-top:0.25rem;display:block">Retrieving purchase requisition line items</small>
+                    </div>
+                `;
+            }
+
+            const endpoint = cfg.procurementPrUrl || '/sales/procurement-pr';
+            try {
+                const params = new URLSearchParams({
+                    uri: uri,
+                    sales_doc: item.SalesDoc || so,
+                    component_material: item.ComponentMaterial || '',
+                    _: String(Date.now()),
+                });
+                const res = await fetch(`${endpoint}?${params.toString()}`);
+                if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to load PR Set`);
+                const payload = await res.json();
+
+                if (payload.status === 'error') {
+                    prBody.innerHTML = `
+                        <div class="pr-line-card" style="text-align:center;color:#ef4444;padding:2rem">
+                            <span class="material-icons-round" style="font-size:36px;color:#ef4444;margin-bottom:0.5rem">error_outline</span>
+                            <h4 style="margin:0">SAP Request Failed</h4>
+                            <p style="margin:0.25rem 0 0.5rem;font-size:0.8rem">${escapeHtml(payload.error || 'Failed to retrieve PR details from SAP')}</p>
+                        </div>
+                    `;
+                    return;
+                }
+
+                const prList = payload.data || [];
+                if (!prList.length) {
+                    prBody.innerHTML = `
+                        <div class="pr-line-card" style="text-align:center;color:#64748b;padding:2rem">
+                            <span class="material-icons-round" style="font-size:36px;color:#cbd5e1;margin-bottom:0.5rem">info</span>
+                            <h4 style="margin:0;color:#0f172a">No Purchase Requisitions Linked</h4>
+                            <p style="margin:0.25rem 0 1rem;font-size:0.8rem">No PR lines found in SAP for this component material.</p>
+                            <div style="text-align:left;background:#f8fafc;padding:0.75rem;border-radius:0.5rem;font-size:0.75rem;border:1px solid #e2e8f0">
+                                <strong style="color:#0f172a;display:block;margin-bottom:0.35rem">Component Summary:</strong>
+                                <div>Req Qty: <b>${escapeHtml(item.RequirementQty || item.RequiredQuantity || '0')}</b></div>
+                                <div>Total PR Qty: <b>${escapeHtml(item.TotalPRQty || item.TotalPRQuantity || '0')}</b></div>
+                                <div>Total PO Qty: <b>${escapeHtml(item.TotalPOQty || item.TotalPOQuantity || '0')}</b></div>
+                                <div>Balance PR: <b>${escapeHtml(item.BalancePRQty || '0')}</b></div>
+                                <div>Stock Qty: <b>${escapeHtml(item.StockQty || item.StockQuantity || '0')}</b></div>
+                            </div>
+                        </div>
+                    `;
+                    return;
+                }
+
+                prBody.innerHTML = `
+                    <div style="margin-bottom:1rem;display:flex;justify-content:space-between;align-items:center">
+                        <span style="font-size:0.82rem;font-weight:700;color:#334155">${prList.length} Purchase Requisition Item(s)</span>
+                        <span class="proc-pill proc-pill-live" style="background:#ecfdf5;color:#059669;border:1px solid #a7f3d0;border-radius:9999px;padding:0.18rem 0.55rem;font-size:0.72rem;font-weight:700;display:inline-flex;align-items:center;gap:0.3rem"><span class="pulse-dot"></span> Live SAP</span>
+                    </div>
+                    ${prList.map((pr) => {
+                        const reqQty = parseFloat(String(pr.RequirementQty || '0').replace(/\s+/g, '')) || 0;
+                        const prQty = parseFloat(String(pr.PRQty || '0').replace(/\s+/g, '')) || 0;
+                        const poQty = parseFloat(String(pr.POQty || '0').replace(/\s+/g, '')) || 0;
+                        const balQty = parseFloat(String(pr.BalancePRQty || '0').replace(/\s+/g, '')) || 0;
+                        const cleanItem = pr.PRItem ? String(parseInt(pr.PRItem, 10)) : '10';
+
+                        return `
+                            <div class="pr-line-card">
+                                <div class="pr-line-card-head">
+                                    <span class="pr-num">
+                                        <span class="material-icons-round" style="font-size:16px;color:#4f46e5">receipt</span> 
+                                        PR #${escapeHtml(pr.PRNumber || '—')} · Item ${escapeHtml(cleanItem)}
+                                    </span>
+                                    <span class="pr-status-badge" style="background:${balQty <= 0 ? '#ecfdf5' : '#fffbeb'};color:${balQty <= 0 ? '#059669' : '#d97706'}">
+                                        ${balQty <= 0 ? 'PO Fulfilled' : 'Open PR Balance'}
+                                    </span>
+                                </div>
+                                <div class="pr-grid-details">
+                                    <div><span>Requirement Qty</span><strong style="color:#0f172a">${fmtNum(reqQty)}</strong></div>
+                                    <div><span>PR Quantity</span><strong style="color:#4f46e5">${fmtNum(prQty)}</strong></div>
+                                    <div><span>PO Quantity</span><strong style="color:#059669">${fmtNum(poQty)}</strong></div>
+                                    <div><span>Balance PR</span><strong style="color:${balQty < 0 ? '#dc2626' : (balQty > 0 ? '#d97706' : '#10b981')}">${fmtNum(balQty)}</strong></div>
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                `;
+            } catch (err) {
+                if (prBody) {
+                    prBody.innerHTML = `<div class="empty-state" style="color:#ef4444;padding:2rem">Error: ${escapeHtml(err.message)}</div>`;
+                }
+            }
+        }
+
+        // Event Listeners: Sort Headers
+        panelProcurement.querySelectorAll('.procurement-table thead th.col-sortable').forEach(th => {
+            th.addEventListener('click', (e) => {
+                if (e.target.closest('input, select, button')) return;
+                const col = th.dataset.sort;
+                if (!col) return;
+                if (currentProcSortCol === col) {
+                    currentProcSortDir = (currentProcSortDir === 'asc' ? 'desc' : 'asc');
+                } else {
+                    currentProcSortCol = col;
+                    currentProcSortDir = 'asc';
+                }
+                updateSortHeaders();
+                applyFiltersAndSort();
+            });
+        });
+
+        // Column filter input events
+        panelProcurement.querySelectorAll('.proc-col-filter').forEach(inp => {
+            inp.addEventListener('input', () => {
+                const col = inp.dataset.col;
+                if (col) {
+                    activeColFilters[col] = inp.value.trim();
+                    applyFiltersAndSort();
+                }
+            });
+        });
+
+        // Clear all column filters button
+        const clearColFiltersBtn = panelProcurement.querySelector('#btnClearDrawerProcFilters');
+        if (clearColFiltersBtn) {
+            clearColFiltersBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                Object.keys(activeColFilters).forEach(k => activeColFilters[k] = '');
+                panelProcurement.querySelectorAll('.proc-col-filter').forEach(i => { i.value = ''; });
+                applyFiltersAndSort();
+            });
+        }
+
+        // Group Filter Pills
+        const groupPills = panelProcurement.querySelectorAll('.proc-filter-pill');
+        groupPills.forEach(pill => {
+            pill.addEventListener('click', () => {
+                groupPills.forEach(p => p.classList.remove('active'));
+                pill.classList.add('active');
+                activeGroupFilter = pill.getAttribute('data-group') || 'all';
+                applyFiltersAndSort();
+            });
+        });
+
+        // Global Search Input & Clear
+        const searchInput = panelProcurement.querySelector('.proc-search-input');
+        const searchClearBtn = panelProcurement.querySelector('.proc-search-clear');
+        if (searchInput) {
+            searchInput.addEventListener('input', () => {
+                activeGlobalSearch = searchInput.value.toLowerCase().trim();
+                if (searchClearBtn) {
+                    searchClearBtn.style.display = activeGlobalSearch ? 'flex' : 'none';
+                }
+                applyFiltersAndSort();
+            });
+        }
+        if (searchClearBtn) {
+            searchClearBtn.addEventListener('click', () => {
+                if (searchInput) searchInput.value = '';
+                searchClearBtn.style.display = 'none';
+                activeGlobalSearch = '';
+                applyFiltersAndSort();
+            });
+        }
+
+        // Sync Button
+        const syncBtn = panelProcurement.querySelector('.btn-proc-sync');
+        if (syncBtn) {
+            syncBtn.addEventListener('click', () => loadDrawerProcurement(record, true));
+        }
+
+        // Empty State Action Buttons
+        const emptySyncBtn = panelProcurement.querySelector('.btn-proc-empty-sync');
+        if (emptySyncBtn) {
+            emptySyncBtn.addEventListener('click', () => loadDrawerProcurement(record, true));
+        }
+        const emptyBomBtn = panelProcurement.querySelector('.btn-proc-goto-bom');
+        if (emptyBomBtn) {
+            emptyBomBtn.addEventListener('click', () => openSubDrawer('bom'));
+        }
+        const emptyPlanningBtn = panelProcurement.querySelector('.btn-proc-goto-planning');
+        if (emptyPlanningBtn) {
+            emptyPlanningBtn.addEventListener('click', () => openSubDrawer('planning'));
+        }
+
+        function closeDrawerProcPr() {
+            panelProcurement.querySelector('#drawerProcPrDrawer')?.classList.remove('open');
+            panelProcurement.querySelector('#drawerProcPrDrawer')?.setAttribute('aria-hidden', 'true');
+            panelProcurement.querySelector('#drawerProcPrBackdrop')?.classList.remove('open');
+            panelProcurement.querySelectorAll('#drawerProcTableBody tr.proc-row').forEach(r => r.classList.remove('active'));
+        }
+
+        // PR Drawer Close Button & Backdrop Click
+        const prDrawerCloseBtn = panelProcurement.querySelector('#drawerPrDrawerClose');
+        if (prDrawerCloseBtn) {
+            prDrawerCloseBtn.addEventListener('click', closeDrawerProcPr);
+        }
+        const prBackdrop = panelProcurement.querySelector('#drawerProcPrBackdrop');
+        if (prBackdrop) {
+            prBackdrop.addEventListener('click', closeDrawerProcPr);
+        }
+
+        // Initial render
+        renderPage(1);
+    }
+
+    async function loadDrawerProcurement(record, forceReload = false) {
+        if (!record) return;
+        const so = String(record.sales_order || '4203').trim();
+        if (!forceReload && procCacheBySo[so]) {
+            renderProcurementPanel(record, false, null, procCacheBySo[so].data, procCacheBySo[so].raw);
+            if (dncProcVal) dncProcVal.textContent = `${procCacheBySo[so].data.length} components`;
+            return;
+        }
+
+        renderProcurementPanel(record, true);
+        if (dncProcVal) dncProcVal.textContent = 'Syncing…';
+
+        const endpoint = cfg.procurementUrl || '/sales/procurement';
+        try {
+            const res = await fetch(`${endpoint}?sales_doc=${encodeURIComponent(so)}&_=${Date.now()}`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}: Failed to load procurement data`);
+            const payload = await res.json();
+            if (payload.status === 'error' || !payload.data) {
+                const err = payload.error || 'No procurement records returned from SAP for SO ' + so;
+                procCacheBySo[so] = { data: [], raw: payload };
+                renderProcurementPanel(record, false, err, [], payload);
+                if (dncProcVal) dncProcVal.textContent = '0 components';
+            } else {
+                procCacheBySo[so] = { data: payload.data, raw: payload };
+                renderProcurementPanel(record, false, null, payload.data, payload);
+                if (dncProcVal) dncProcVal.textContent = `${payload.data.length} components`;
+            }
+        } catch (err) {
+            renderProcurementPanel(record, false, err.message, [], null);
+            if (dncProcVal) dncProcVal.textContent = 'SAP Error';
+        }
+    }
+
+    function openSalesOrderOffcanvas(record, initialTab = null) {
+        if (!record || !drawer) return;
+        currentDrawerRecord = record;
+
+        // Header metadata
+        if (drawerSoNum) drawerSoNum.textContent = record.sales_order || '—';
+        if (drawerLineNum) drawerLineNum.textContent = record.line_item || '—';
+        if (drawerPlantNum) drawerPlantNum.textContent = record.plant || '—';
+        if (drawerStatusPill) {
+            drawerStatusPill.textContent = record.status || 'Active';
+            drawerStatusPill.className = `sales-status-pill ${statusClass(record.status)}`;
+        }
+        if (detailTitle) {
+            detailTitle.textContent = record.material || record.style || `Sales Order #${record.sales_order}`;
+        }
+        if (drawerSub) {
+            drawerSub.textContent = `${record.customer_ref || 'Customer Order'} · Plant ${record.plant || '—'} · Division: ${record.division || 'General'}`;
+        }
+
+        // Header pills (Net, Quantity, Date)
+        if (drawerNetVal) drawerNetVal.textContent = fmtMoney(record.net_amount);
+        if (drawerQtyVal) drawerQtyVal.textContent = `${fmtNum(record.qty)} ${record.unit || 'EA'}`;
+        if (drawerDateVal) drawerDateVal.textContent = fmtSapDate(record.date) || record.date || '—';
+
+        // Quick Stats Bar (if present)
+        if (drawerQuickNet) drawerQuickNet.textContent = fmtMoney(record.net_amount);
+        if (drawerQuickQty) drawerQuickQty.textContent = `${fmtNum(record.qty)} ${record.unit || 'EA'}`;
+        if (drawerQuickDate) drawerQuickDate.textContent = fmtSapDate(record.date) || record.date || '—';
+        if (drawerQuickPlant) drawerQuickPlant.textContent = record.plant || '—';
+
+        // Domain Cards Values
+        if (dncPlanningVal) dncPlanningVal.textContent = `${fmtNum(record.confd_deliv_qty || record.qty)} ${record.unit || 'EA'}`;
+        if (dncBomVal) {
+            dncBomVal.textContent = bomCacheBySo[record.sales_order] ? `${bomCacheBySo[record.sales_order].data.length} components` : 'Live SAP BOM';
+        }
+        if (dncMaterialVal) {
+            dncMaterialVal.textContent = record.material || 'Material Master';
+        }
+        if (dncProcVal) {
+            if (procCacheBySo[record.sales_order]) {
+                dncProcVal.textContent = `${procCacheBySo[record.sales_order].data.length} components`;
+            } else {
+                dncProcVal.textContent = 'Live SAP';
+            }
+        }
+
+        // Open Offcanvas
         drawer.classList.add('open');
         drawer.setAttribute('aria-hidden', 'false');
-        if (backdrop) backdrop.hidden = false;
+        if (backdrop) {
+            backdrop.hidden = false;
+            backdrop.style.display = 'block';
+        }
         document.body.classList.add('sales-detail-open');
+
+        // Reset activeDrawerTab so it opens with only the 4 cards by default
+        activeDrawerTab = null;
+        switchDrawerTab(initialTab);
+
+        // Pre-fetch procurement in background for quick response if not cached
+        if (!procCacheBySo[record.sales_order]) {
+            loadDrawerProcurement(record);
+        }
+    }
+
+    function openDetail(record) {
+        openSalesOrderOffcanvas(record, null);
     }
 
     function closeDetail() {
+        closeSubDrawer();
         drawer?.classList.remove('open');
         drawer?.setAttribute('aria-hidden', 'true');
-        if (backdrop) backdrop.hidden = true;
+        if (backdrop) {
+            backdrop.hidden = true;
+            backdrop.style.display = 'none';
+        }
         document.body.classList.remove('sales-detail-open');
     }
 
@@ -275,8 +2738,15 @@
         animateValue(document.getElementById('skAvg'), summary.avg_line || 0, v => fmtMoney(v));
         animateValue(document.getElementById('skReturn'), summary.return_rate || 0, v => v.toFixed(1) + '%');
         animateValue(document.getElementById('skMargin'), summary.gross_margin || 0, v => v.toFixed(1) + '%');
+        const procKpi = document.getElementById('skProcurement');
+        if (procKpi) {
+            animateValue(procKpi, summary.orders || 0, v => fmtNum(v) + ' orders');
+        }
         if (liveCount) {
             liveCount.innerHTML = `<span class="material-icons-round">receipt_long</span> ${fmtNum(summary.lines || 0)} lines`;
+        }
+        if (tableCount && summary && summary.lines !== undefined) {
+            tableCount.textContent = fmtNum(summary.lines);
         }
     }
 
@@ -284,15 +2754,60 @@
         const total = Number(data?.total || 0);
         const page = Number(data?.page || 1);
         const per = Number(data?.per_page || pageSize);
+        const totalPages = Number(data?.pages || 1);
         const start = total === 0 ? 0 : ((page - 1) * per) + 1;
         const end = Math.min(page * per, total);
+
         if (rangeInfo) {
             rangeInfo.textContent = total === 0
                 ? 'Showing 0 of 0'
                 : `Showing ${start.toLocaleString()}–${end.toLocaleString()} of ${total.toLocaleString()}`;
         }
+        if (tableCount) {
+            tableCount.textContent = fmtNum(total);
+        }
         prevBtn && (prevBtn.disabled = page <= 1 || total === 0);
-        nextBtn && (nextBtn.disabled = !data || page >= Number(data.pages || 1) || total === 0);
+        nextBtn && (nextBtn.disabled = !data || page >= totalPages || total === 0);
+
+        // Render Numbered Page Group Buttons
+        if (pageNumbersContainer) {
+            if (totalPages <= 1) {
+                pageNumbersContainer.innerHTML = '';
+                return;
+            }
+            let html = '';
+            const maxVisible = 5;
+            let startPage = Math.max(1, page - 2);
+            let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+            if (endPage - startPage < maxVisible - 1) {
+                startPage = Math.max(1, endPage - maxVisible + 1);
+            }
+
+            if (startPage > 1) {
+                html += `<button type="button" class="sales-num-btn" data-page="1">1</button>`;
+                if (startPage > 2) html += `<span class="sales-num-ellipsis">…</span>`;
+            }
+
+            for (let p = startPage; p <= endPage; p++) {
+                html += `<button type="button" class="sales-num-btn ${p === page ? 'active' : ''}" data-page="${p}">${p}</button>`;
+            }
+
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) html += `<span class="sales-num-ellipsis">…</span>`;
+                html += `<button type="button" class="sales-num-btn" data-page="${totalPages}">${totalPages}</button>`;
+            }
+
+            pageNumbersContainer.innerHTML = html;
+
+            pageNumbersContainer.querySelectorAll('.sales-num-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const targetPage = parseInt(btn.dataset.page, 10);
+                    if (targetPage && targetPage !== page) {
+                        fetchPage(targetPage);
+                    }
+                });
+            });
+        }
     }
 
     window.kapisKpiDetails = function (key) {
@@ -306,10 +2821,6 @@
             ['Order Quantity', fmtNum(summary.total_qty)],
             ['Sales Orders', fmtNum(summary.orders)],
             ['Order Lines', fmtNum(summary.lines || lastPayload?.total || 0)],
-            ['Avg Line Value', fmtMoney(summary.avg_line)],
-            ['Return Rate', Number(summary.return_rate || 0).toFixed(1) + '%'],
-            ['Gross Margin', Number(summary.gross_margin || 0).toFixed(1) + '%'],
-            ['Top plant', mix.labels?.[0] || '—'],
             ['Top material', charts.top_styles?.labels?.[0] || '—'],
         ];
         const card = document.querySelector(`.kpi-card[data-kpi="${key}"]`);
@@ -328,108 +2839,243 @@
         Chart.defaults.borderColor = '#e2e8f0';
         Chart.defaults.font.family = 'DM Sans, sans-serif';
 
-        trendChart = new Chart(document.getElementById('salesTrendChart'), {
-            type: 'line',
-            data: { labels: [], datasets: [{
-                label: 'Net Sales',
-                data: [],
-                borderColor: '#6366f1',
-                backgroundColor: (ctx) => {
-                    const { chart } = ctx;
-                    const { ctx: c, chartArea } = chart;
-                    if (!chartArea) return 'rgba(99,102,241,0.2)';
-                    const g = c.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
-                    g.addColorStop(0, 'rgba(99,102,241,0.55)');
-                    g.addColorStop(0.55, 'rgba(34,211,238,0.22)');
-                    g.addColorStop(1, 'rgba(244,63,94,0.04)');
-                    return g;
+        const trendEl = document.getElementById('salesTrendChart');
+        if (trendEl) {
+            trendChart = new Chart(trendEl, {
+                type: 'line',
+                data: {
+                    labels: [], datasets: [{
+                        label: 'Net Sales',
+                        data: [],
+                        borderColor: (ctx) => {
+                            const { chart } = ctx;
+                            const { ctx: c, chartArea } = chart;
+                            if (!chartArea) return '#3b82f6';
+                            // Vibrant horizontal multi-stop gradient line
+                            const g = c.createLinearGradient(chartArea.left, 0, chartArea.right, 0);
+                            g.addColorStop(0, '#06b6d4');   // Bright Turquoise Cyan
+                            g.addColorStop(0.35, '#3b82f6'); // Electric Blue
+                            g.addColorStop(0.7, '#8b5cf6');  // Vivid Purple
+                            g.addColorStop(1, '#ec4899');   // Radiant Hot Pink
+                            return g;
+                        },
+                        borderWidth: 3.5,
+                        backgroundColor: (ctx) => {
+                            const { chart } = ctx;
+                            const { ctx: c, chartArea } = chart;
+                            if (!chartArea) return 'rgba(59, 130, 246, 0.15)';
+                            // Luminous multi-color vertical gradient fill
+                            const g = c.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
+                            g.addColorStop(0, 'rgba(139, 92, 246, 0.42)');
+                            g.addColorStop(0.35, 'rgba(59, 130, 246, 0.22)');
+                            g.addColorStop(0.75, 'rgba(6, 182, 212, 0.08)');
+                            g.addColorStop(1, 'rgba(255, 255, 255, 0.0)');
+                            return g;
+                        },
+                        fill: true,
+                        tension: 0.44,
+                        pointRadius: 6,
+                        pointHoverRadius: 9,
+                        pointBackgroundColor: '#ffffff',
+                        pointBorderColor: '#6366f1',
+                        pointBorderWidth: 3,
+                        pointHoverBackgroundColor: '#ec4899',
+                        pointHoverBorderColor: '#ffffff',
+                        pointHoverBorderWidth: 3.5,
+                    }]
                 },
-                fill: true,
-                tension: 0.38,
-                pointRadius: 5,
-                pointHoverRadius: 8,
-                pointBackgroundColor: PALETTE,
-                pointBorderColor: '#fff',
-                pointBorderWidth: 2,
-            }] },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                animation: chartAnim,
-                plugins: { legend: { display: false } },
-                scales: {
-                    y: { beginAtZero: true, ticks: { callback: v => symbol + Number(v).toLocaleString() } },
-                    x: { grid: { display: false } },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: chartAnim,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                            titleColor: '#ffffff',
+                            bodyColor: '#e2e8f0',
+                            borderColor: 'rgba(255, 255, 255, 0.15)',
+                            borderWidth: 1,
+                            padding: 12,
+                            boxPadding: 6,
+                            cornerRadius: 10,
+                            callbacks: {
+                                label: function (ctx) {
+                                    return ` Net Sales: ${fmtMoney(ctx.parsed.y)}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                color: '#64748b',
+                                font: { size: 11, weight: 600 },
+                                callback: v => symbol + Number(v).toLocaleString()
+                            },
+                            grid: {
+                                color: 'rgba(226, 232, 240, 0.7)',
+                                borderDash: [5, 5]
+                            }
+                        },
+                        x: {
+                            ticks: {
+                                color: '#64748b',
+                                font: { size: 11, weight: 600 },
+                                maxRotation: 0,
+                                autoSkip: true,
+                                maxTicksLimit: 12
+                            },
+                            grid: { display: false }
+                        },
+                    },
                 },
-            },
-        });
+            });
+        }
 
-        divisionChart = new Chart(document.getElementById('salesDivisionChart'), {
-            type: 'polarArea',
-            data: { labels: [], datasets: [{ data: [], backgroundColor: PALETTE, borderWidth: 2, borderColor: '#fff' }] },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                animation: { animateRotate: true, animateScale: true, duration: 1200 },
-                onClick: function (evt, els) { clickFilter(this)(evt, els); },
-                plugins: {
-                    legend: { position: 'bottom', labels: { padding: 10, boxWidth: 10 } },
+        const divEl = document.getElementById('salesDivisionChart');
+        if (divEl) {
+            divisionChart = new Chart(divEl, {
+                type: 'doughnut',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        data: [],
+                        backgroundColor: PALETTE,
+                        borderWidth: 4,
+                        borderColor: '#ffffff',
+                        borderRadius: 8,
+                        spacing: 3,
+                        hoverOffset: 12,
+                    }]
                 },
-                scales: { r: { ticks: { display: false }, grid: { color: 'rgba(99,102,241,0.12)' } } },
-            },
-        });
-
-        stylesChart = new Chart(document.getElementById('salesStylesChart'), {
-            type: 'bar',
-            data: { labels: [], datasets: [{
-                label: 'Net Amount',
-                data: [],
-                backgroundColor: PALETTE,
-                borderRadius: 8,
-            }] },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                indexAxis: 'y',
-                animation: chartAnim,
-                onClick: function (evt, els) { clickFilter(this)(evt, els); },
-                plugins: { legend: { display: false } },
-                scales: { x: { beginAtZero: true, ticks: { callback: v => symbol + Number(v).toLocaleString() } }, y: { grid: { display: false } } },
-            },
-        });
-
-        channelChart = new Chart(document.getElementById('salesChannelChart'), {
-            type: 'bar',
-            data: { labels: [], datasets: [{
-                label: 'Net Amount',
-                data: [],
-                backgroundColor: PALETTE.slice().reverse(),
-                borderRadius: 10,
-            }] },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                animation: chartAnim,
-                onClick: function (evt, els) { clickFilter(this)(evt, els); },
-                plugins: { legend: { display: false } },
-                scales: {
-                    y: { beginAtZero: true, ticks: { callback: v => symbol + Number(v).toLocaleString() } },
-                    x: { grid: { display: false } },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '72%',
+                    animation: { animateRotate: true, animateScale: true, duration: 1200, easing: 'easeOutQuart' },
+                    onClick: function (evt, els) { clickFilter(this)(evt, els); },
+                    onHover: function (evt, elements) {
+                        const centerVal = document.getElementById('plantMixCenterVal');
+                        const centerLbl = document.getElementById('plantMixCenterLbl');
+                        if (!centerVal || !centerLbl) return;
+                        if (elements && elements.length > 0) {
+                            const idx = elements[0].index;
+                            const label = this.data.labels[idx];
+                            const val = Number(this.data.datasets[0].data[idx] || 0);
+                            const total = this.data.datasets[0].data.reduce((a, b) => a + Number(b || 0), 0);
+                            const pct = total > 0 ? Math.round((val / total) * 100) : 0;
+                            centerVal.textContent = `${pct}%`;
+                            centerLbl.textContent = label;
+                        } else {
+                            centerVal.textContent = (this.data.labels || []).length + ' Plants';
+                            centerLbl.textContent = 'Active Mix';
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'bottom',
+                            labels: {
+                                color: '#334155',
+                                padding: 16,
+                                boxWidth: 12,
+                                boxHeight: 12,
+                                font: { size: 12, weight: 700 },
+                                usePointStyle: true,
+                                pointStyle: 'circle'
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(15, 23, 42, 0.95)',
+                            titleColor: '#ffffff',
+                            bodyColor: '#e2e8f0',
+                            borderColor: 'rgba(255, 255, 255, 0.15)',
+                            borderWidth: 1,
+                            padding: 12,
+                            boxPadding: 6,
+                            cornerRadius: 10,
+                            callbacks: {
+                                label: function (ctx) {
+                                    const val = ctx.parsed || 0;
+                                    const total = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                                    const pct = total > 0 ? Math.round((val / total) * 100) : 0;
+                                    return ` ${ctx.label}: ${fmtMoney(val)} (${pct}%)`;
+                                }
+                            }
+                        }
+                    },
                 },
-            },
-        });
+            });
+        }
 
-        statusChart = new Chart(document.getElementById('salesStatusChart'), {
-            type: 'doughnut',
-            data: { labels: [], datasets: [{ data: [], backgroundColor: ['#0ea5e9', '#10b981', '#f59e0b', '#f43f5e', '#8b5cf6'], borderWidth: 3, borderColor: '#fff', hoverOffset: 10 }] },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                cutout: '58%',
-                onClick: function (evt, els) { clickFilter(this)(evt, els); },
-                plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, padding: 10 } } },
-            },
-        });
+        const stylesEl = document.getElementById('salesStylesChart');
+        if (stylesEl) {
+            stylesChart = new Chart(stylesEl, {
+                type: 'bar',
+                data: {
+                    labels: [], datasets: [{
+                        label: 'Net Amount',
+                        data: [],
+                        backgroundColor: PALETTE,
+                        borderRadius: 8,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    indexAxis: 'y',
+                    animation: chartAnim,
+                    onClick: function (evt, els) { clickFilter(this)(evt, els); },
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { beginAtZero: true, ticks: { color: '#94a3b8', callback: v => symbol + Number(v).toLocaleString() }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                        y: { ticks: { color: '#94a3b8' }, grid: { display: false } }
+                    },
+                },
+            });
+        }
+
+        const channelEl = document.getElementById('salesChannelChart');
+        if (channelEl) {
+            channelChart = new Chart(channelEl, {
+                type: 'bar',
+                data: {
+                    labels: [], datasets: [{
+                        label: 'Net Amount',
+                        data: [],
+                        backgroundColor: PALETTE.slice().reverse(),
+                        borderRadius: 10,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: chartAnim,
+                    onClick: function (evt, els) { clickFilter(this)(evt, els); },
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, ticks: { color: '#94a3b8', callback: v => symbol + Number(v).toLocaleString() }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                        x: { ticks: { color: '#94a3b8' }, grid: { display: false } },
+                    },
+                },
+            });
+        }
+
+        const statusEl = document.getElementById('salesStatusChart');
+        if (statusEl) {
+            statusChart = new Chart(statusEl, {
+                type: 'doughnut',
+                data: { labels: [], datasets: [{ data: [], backgroundColor: ['#38bdf8', '#34d399', '#fbbf24', '#f43f5e', '#a855f7'], borderWidth: 2, borderColor: '#0f172a', hoverOffset: 10 }] },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '58%',
+                    onClick: function (evt, els) { clickFilter(this)(evt, els); },
+                    plugins: { legend: { position: 'bottom', labels: { color: '#cbd5e1', boxWidth: 10, padding: 10 } } },
+                },
+            });
+        }
     }
 
     function updateCharts(charts) {
@@ -438,8 +3084,14 @@
         if (trendChart && charts.trend) {
             trendChart.data.labels = charts.trend.labels || [];
             trendChart.data.datasets[0].data = charts.trend.values || [];
-            trendChart.data.datasets[0].pointRadius = (charts.trend.labels || []).length > 20 ? 0 : 5;
+            trendChart.data.datasets[0].pointRadius = (charts.trend.labels || []).length > 25 ? 0 : 6;
             trendChart.update('active');
+
+            const trendPeak = document.getElementById('trendPeakStat');
+            if (trendPeak && (charts.trend.values || []).length > 0) {
+                const maxVal = Math.max(...charts.trend.values.map(Number));
+                trendPeak.textContent = `Peak: ${fmtMoney(maxVal)}`;
+            }
         }
 
         const mix = charts.plants && charts.plants.labels?.length > 1 ? charts.plants : (charts.mix || charts.division);
@@ -450,8 +3102,17 @@
             if (mixSub) mixSub.textContent = mix.subtitle || 'Click a slice to filter';
             divisionChart.data.labels = mix.labels || [];
             divisionChart.data.datasets[0].data = mix.values || [];
-            divisionChart.data.datasets[0].backgroundColor = colorSet((mix.labels || []).length);
+            divisionChart.data.datasets[0].backgroundColor = (mix.labels || []).map((_, i) => PALETTE[i % PALETTE.length]);
             divisionChart.update('active');
+
+            const centerVal = document.getElementById('plantMixCenterVal');
+            const centerLbl = document.getElementById('plantMixCenterLbl');
+            if (centerVal) {
+                centerVal.textContent = (mix.labels || []).length + ' Plants';
+            }
+            if (centerLbl) {
+                centerLbl.textContent = 'Distribution';
+            }
         }
 
         if (stylesChart && charts.top_styles) {
@@ -482,6 +3143,37 @@
         renderBoards(charts);
     }
 
+    function getPlantBadgeHtml(plant) {
+        const p = String(plant || '').trim().toUpperCase();
+        if (!p || p === '—') return '<span class="plant-badge plant-none">—</span>';
+
+        const map = {
+            'PO01': 'plant-emerald',
+            'P001': 'plant-emerald',
+            'PO02': 'plant-indigo',
+            'P002': 'plant-indigo',
+            'PO03': 'plant-amber',
+            'P003': 'plant-amber',
+            'PO04': 'plant-rose',
+            'P004': 'plant-rose',
+            'PO05': 'plant-purple',
+            'P005': 'plant-purple',
+            'PO06': 'plant-cyan',
+            'P006': 'plant-cyan',
+            '1000': 'plant-blue',
+            '2000': 'plant-teal',
+        };
+
+        let cls = map[p];
+        if (!cls) {
+            const classes = ['plant-indigo', 'plant-emerald', 'plant-amber', 'plant-rose', 'plant-purple', 'plant-cyan', 'plant-blue', 'plant-teal'];
+            const sum = p.split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+            cls = classes[sum % classes.length];
+        }
+
+        return `<span class="plant-badge ${cls}"><span class="plant-dot"></span>${escapeHtml(p)}</span>`;
+    }
+
     function renderRows(records) {
         if (!tbody) return;
         if (!records.length) {
@@ -489,33 +3181,201 @@
             return;
         }
 
-        tbody.innerHTML = records.map((r, i) => `
-            <tr class="sales-row row-animate" data-id="${escapeHtml(r.id)}" tabindex="0" role="button" style="animation-delay:${Math.min(i, 12) * 0.03}s">
-                <td><span class="so-id">${escapeHtml(r.sales_order)}</span></td>
-                <td><span class="line-no">${escapeHtml(r.line_item)}</span></td>
-                <td class="col-style">
-                    <span class="style-name">${escapeHtml(r.material)}</span>
-                    ${r.material_group && r.material_group !== '—' ? `<span class="style-meta">${escapeHtml(r.material_group)}</span>` : ''}
-                </td>
-                <td><span class="category-tag">${escapeHtml(r.plant || '—')}</span></td>
-                <td><span class="category-tag">${escapeHtml(r.division)}</span></td>
-                <td class="col-date">${escapeHtml(r.date)}</td>
-                <td class="col-num">${fmtNum(r.qty)}</td>
-                <td class="col-num revenue-cell">${fmtMoney(r.net_amount)}</td>
-                <td><span class="sales-status-pill ${statusClass(r.status)}">${escapeHtml(r.status)}</span></td>
-                <td class="col-go"><span class="material-icons-round">chevron_right</span></td>
-            </tr>
-        `).join('');
+        const startIdx = ((currentPage - 1) * pageSize);
+
+        tbody.innerHTML = records.map((r, i) => {
+            const sno = startIdx + i + 1;
+            return `
+                <tr class="sales-row row-animate" data-id="${escapeHtml(r.id)}" tabindex="0" role="button" title="Click to open Sales Order details (Planning, BOM, Material, Procurement)" style="animation-delay:${Math.min(i, 12) * 0.03}s">
+                    <td style="text-align:center;"><span class="sales-sno">${sno}</span></td>
+                    <td>
+                        <button type="button" class="so-id-btn" data-so="${escapeHtml(r.sales_order)}" title="Click to view Sales Order #${escapeHtml(r.sales_order)} details">
+                            <span class="material-icons-round">receipt_long</span>
+                            <span>${escapeHtml(r.sales_order)}</span>
+                        </button>
+                    </td>
+                    <td><span class="line-no">${escapeHtml(r.line_item)}</span></td>
+                    <td class="col-style">
+                        <span class="style-name">${escapeHtml(r.material)}</span>
+                        ${r.material_group && r.material_group !== '—' ? `<span class="style-meta">${escapeHtml(r.material_group)}</span>` : ''}
+                    </td>
+                    <td>${getPlantBadgeHtml(r.plant)}</td>
+                    <td class="col-date">${escapeHtml(fmtSapDate(r.date) || r.date)}</td>
+                    <td class="col-num">${fmtNum(r.qty)}</td>
+                    <td class="col-num revenue-cell">${fmtMoney(r.net_amount)}</td>
+                    <td><span class="sales-status-pill ${statusClass(r.status)}">${escapeHtml(r.status)}</span></td>
+                    <td class="col-go" title="Open Sales Order Details"><span class="btn-line-detail material-icons-round">chevron_right</span></td>
+                </tr>
+            `;
+        }).join('');
 
         tbody.querySelectorAll('.sales-row').forEach((row, i) => {
             const record = records[i];
-            row.addEventListener('click', () => openDetail(record));
+
+            // Clicking ANY row opens the enhanced Sales Order Offcanvas showing cards
+            row.addEventListener('click', () => {
+                openSalesOrderOffcanvas(record, null);
+            });
+
             row.addEventListener('keydown', (e) => {
                 if (e.key === 'Enter' || e.key === ' ') {
                     e.preventDefault();
-                    openDetail(record);
+                    openSalesOrderOffcanvas(record, null);
                 }
             });
+        });
+    }
+
+    function applyFiltersAndSort() {
+        let list = [...currentRawRecords];
+
+        // 1. Column-level filters
+        list = list.filter(r => {
+            if (activeColFilters.sales_order) {
+                const so = String(r.sales_order || '').toLowerCase();
+                if (!so.includes(activeColFilters.sales_order.toLowerCase())) return false;
+            }
+            if (activeColFilters.line_item) {
+                const ln = String(r.line_item || '');
+                if (!ln.includes(activeColFilters.line_item)) return false;
+            }
+            if (activeColFilters.material) {
+                const mat = String(r.material || '').toLowerCase();
+                const grp = String(r.material_group || '').toLowerCase();
+                const q = activeColFilters.material.toLowerCase();
+                if (!mat.includes(q) && !grp.includes(q)) return false;
+            }
+            if (activeColFilters.plant) {
+                const pl = String(r.plant || '').toUpperCase();
+                if (pl !== activeColFilters.plant.toUpperCase()) return false;
+            }
+            if (activeColFilters.date) {
+                const dt = String(r.date || '');
+                const fmtDt = fmtSapDate(r.date).toLowerCase();
+                const q = activeColFilters.date.toLowerCase();
+                if (!dt.includes(q) && !fmtDt.includes(q)) return false;
+            }
+            if (activeColFilters.qty) {
+                const qVal = parseFloat(activeColFilters.qty);
+                if (!isNaN(qVal) && Number(r.qty || 0) < qVal) return false;
+            }
+            if (activeColFilters.net_amount) {
+                const amtVal = parseFloat(activeColFilters.net_amount);
+                if (!isNaN(amtVal) && Number(r.net_amount || 0) < amtVal) return false;
+            }
+            if (activeColFilters.status) {
+                const st = String(r.status || '').toLowerCase();
+                if (!st.includes(activeColFilters.status.toLowerCase())) return false;
+            }
+            return true;
+        });
+
+        // 2. Sort
+        if (currentSortCol) {
+            list.sort((a, b) => {
+                let vA = a[currentSortCol];
+                let vB = b[currentSortCol];
+                if (currentSortCol === 'qty' || currentSortCol === 'net_amount' || currentSortCol === 'line_item') {
+                    vA = parseFloat(vA) || 0;
+                    vB = parseFloat(vB) || 0;
+                    return currentSortDir === 'asc' ? vA - vB : vB - vA;
+                }
+                vA = String(vA || '').toLowerCase();
+                vB = String(vB || '').toLowerCase();
+                const cmp = vA.localeCompare(vB, undefined, { numeric: true });
+                return currentSortDir === 'asc' ? cmp : -cmp;
+            });
+        }
+
+        renderRows(list);
+        if (tableCount) {
+            tableCount.textContent = fmtNum(list.length);
+        }
+    }
+
+    function updateSortHeaders() {
+        document.querySelectorAll('#salesDataTable thead th.col-sortable').forEach(th => {
+            const col = th.dataset.sort;
+            const icon = th.querySelector('.sort-icon');
+            th.classList.remove('is-sorted-asc', 'is-sorted-desc');
+            if (col === currentSortCol) {
+                th.classList.add(currentSortDir === 'asc' ? 'is-sorted-asc' : 'is-sorted-desc');
+                if (icon) {
+                    icon.textContent = currentSortDir === 'asc' ? 'arrow_upward' : 'arrow_downward';
+                }
+            } else {
+                if (icon) icon.textContent = 'unfold_more';
+            }
+        });
+    }
+
+    function populatePlantOptions(records) {
+        const plantSelect = document.getElementById('colFilterPlant');
+        if (!plantSelect) return;
+        const currentVal = plantSelect.value;
+        const plants = Array.from(new Set((records || []).map(r => String(r.plant || '').trim()).filter(Boolean))).sort();
+        plantSelect.innerHTML = '<option value="">All Plants</option>' + plants.map(p => `<option value="${escapeHtml(p)}" ${p === currentVal ? 'selected' : ''}>${escapeHtml(p)}</option>`).join('');
+    }
+
+    function initTableSortAndFilters() {
+        // Sortable headers
+        document.querySelectorAll('#salesDataTable thead th.col-sortable').forEach(th => {
+            th.addEventListener('click', (e) => {
+                if (e.target.closest('input, select, button')) return;
+                const col = th.dataset.sort;
+                if (!col) return;
+                if (currentSortCol === col) {
+                    currentSortDir = currentSortDir === 'asc' ? 'desc' : 'asc';
+                } else {
+                    currentSortCol = col;
+                    currentSortDir = 'asc';
+                }
+                updateSortHeaders();
+                applyFiltersAndSort();
+            });
+        });
+
+        // Column filter text inputs
+        document.querySelectorAll('.col-filter-input').forEach(input => {
+            input.addEventListener('input', () => {
+                const col = input.dataset.filterCol;
+                if (col) {
+                    activeColFilters[col] = input.value.trim();
+                    applyFiltersAndSort();
+                }
+            });
+        });
+
+        // Column filter select dropdowns
+        document.querySelectorAll('.col-filter-select').forEach(select => {
+            select.addEventListener('change', () => {
+                const col = select.dataset.filterCol;
+                if (col) {
+                    activeColFilters[col] = select.value.trim();
+                    applyFiltersAndSort();
+                }
+            });
+        });
+
+        // Clear all filters button
+        const btnClear = document.getElementById('btnClearColFilters');
+        btnClear?.addEventListener('click', () => {
+            document.querySelectorAll('.col-filter-input').forEach(inp => inp.value = '');
+            document.querySelectorAll('.col-filter-select').forEach(sel => sel.value = '');
+            activeColFilters = {
+                sales_order: '',
+                line_item: '',
+                material: '',
+                plant: '',
+                date: '',
+                qty: '',
+                net_amount: '',
+                status: ''
+            };
+            currentSortCol = '';
+            currentSortDir = 'asc';
+            updateSortHeaders();
+            applyFiltersAndSort();
         });
     }
 
@@ -531,50 +3391,87 @@
         loading = true;
         showLoadingBar(true);
         showSalesLoader(true, { launch: !lastPayload });
-        if (tbody) tbody.innerHTML = '<tr><td colspan="10" class="empty-state">Loading…</td></tr>';
+        if (tbody) tbody.innerHTML = '<tr><td colspan="10" class="empty-state">Connecting to SAP for live sales data…</td></tr>';
+
+        const queryTerm = (headerSoSearchInput?.value?.trim() || searchInput?.value?.trim() || '');
+
+        if (queryTerm) {
+            if (headerSoSearchInput && headerSoSearchInput.value !== queryTerm) headerSoSearchInput.value = queryTerm;
+            if (searchInput && searchInput.value !== queryTerm) searchInput.value = queryTerm;
+            if (headerSoSearchClear) headerSoSearchClear.hidden = false;
+        }
 
         const params = new URLSearchParams({
             page: String(page),
             per_page: String(pageSize),
-            q: searchInput?.value?.trim() || '',
+            search: queryTerm,
+            q: queryTerm,
+            from_date: currentFrom,
+            to_date: currentTo,
             from: currentFrom,
             to: currentTo,
             _: String(Date.now()),
         });
 
         try {
+            console.log('[Sales] Calling SAP API live:', `${cfg.apiUrl}?${params.toString()}`);
             const res = await fetch(`${cfg.apiUrl}?${params.toString()}`, {
                 headers: { Accept: 'application/json' },
                 cache: 'no-store',
                 credentials: 'same-origin',
             });
             const raw = await res.text();
-            let data;
+            let result;
             try {
-                data = JSON.parse(raw);
+                result = JSON.parse(raw);
             } catch (_) {
                 const looksHtml = /^\s*</.test(raw) || /<!DOCTYPE/i.test(raw);
                 throw new Error(
                     looksHtml
-                        ? 'Sales API returned HTML instead of JSON. Check nginx /KPIS/ routing.'
+                        ? 'Sales API returned HTML instead of JSON. Check routing.'
                         : 'Sales API returned invalid JSON.'
                 );
             }
 
-            if (!res.ok || data.error) {
-                throw new Error(data.error || `Failed to load sales data (${res.status})`);
+            console.log('[Sales] Live SAP response received:', result);
+
+            if (!res.ok || result.success === false || result.error) {
+                throw new Error(result.message || result.error || `Failed to load sales data (${res.status})`);
             }
 
+            const data = (result.data && result.data.records !== undefined) ? result.data : result;
             lastPayload = data;
-            currentPage = data.page;
-            renderRows(data.records || []);
+            currentPage = data.page || page;
+            currentRawRecords = data.records || [];
+            populatePlantOptions(currentRawRecords);
+            applyFiltersAndSort();
             updateKpis(data.summary);
             updateCharts(data.charts || {});
             updateRange(data);
+
+            if (activeFilterBanner) {
+                if (queryTerm) {
+                    activeFilterBanner.style.display = 'flex';
+                    if (activeFilterText) {
+                        const isNumericSo = /^(?:so\s*#?\s*)?\d+$/i.test(queryTerm);
+                        const cleanSo = queryTerm.replace(/^(?:so\s*#?\s*)/i, '');
+                        activeFilterText.textContent = isNumericSo
+                            ? `Sales Order #${cleanSo} (${data.total || 0} line${(data.total || 0) === 1 ? '' : 's'})`
+                            : `"${queryTerm}" (${data.total || 0} result${(data.total || 0) === 1 ? '' : 's'})`;
+                    }
+                } else {
+                    activeFilterBanner.style.display = 'none';
+                }
+            }
         } catch (err) {
-            if (tbody) tbody.innerHTML = `<tr><td colspan="10" class="empty-state">${escapeHtml(err.message)}</td></tr>`;
+            if (tbody) tbody.innerHTML = `<tr><td colspan="10" class="empty-state" style="color:#ef4444">${escapeHtml(err.message)}</td></tr>`;
             updateRange({ total: 0, page: 1, per_page: pageSize, pages: 1 });
+            if (tableCount) tableCount.textContent = '0';
             if (loaderNote) loaderNote.textContent = err.message;
+            if (activeFilterBanner && queryTerm) {
+                activeFilterBanner.style.display = 'flex';
+                if (activeFilterText) activeFilterText.textContent = `Search: "${queryTerm}" (0 results)`;
+            }
         } finally {
             loading = false;
             showSalesLoader(false);
@@ -678,10 +3575,31 @@
         if (lastPayload && currentPage < lastPayload.pages) fetchPage(currentPage + 1);
     });
 
-    let searchTimer;
-    searchInput?.addEventListener('input', () => {
-        clearTimeout(searchTimer);
-        searchTimer = setTimeout(() => fetchPage(1), 300);
+    const searchSubmitBtn = document.getElementById('btnSalesSearchSubmit');
+    searchSubmitBtn?.addEventListener('click', () => {
+        fetchPage(1);
+    });
+
+    searchInput?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            fetchPage(1);
+        }
+    });
+
+    searchInput?.addEventListener('search', () => {
+        if (!searchInput.value) {
+            fetchPage(1);
+        }
+    });
+
+    const refreshBtn = document.getElementById('btnSalesRefresh');
+    refreshBtn?.addEventListener('click', () => {
+        if (loading) return;
+        refreshBtn.classList.add('is-refreshing');
+        fetchPage(currentPage).finally(() => {
+            setTimeout(() => refreshBtn.classList.remove('is-refreshing'), 600);
+        });
     });
 
     pageSizeSelect?.addEventListener('change', () => {
@@ -692,12 +3610,581 @@
     closeBtn?.addEventListener('click', closeDetail);
     backdrop?.addEventListener('click', closeDetail);
     document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') closeDetail();
+        if (e.key === 'Escape') {
+            if (prDrawer && prDrawer.classList.contains('open')) {
+                closePRDrawer();
+            } else if (procModal && !procModal.hidden) {
+                closeProcurementModal();
+            } else {
+                closeDetail();
+            }
+        }
     });
+
+    /* ==========================================================================
+       Procurement Data Display
+    ========================================================================= */
+    let currentProcData = [];
+    let currentProcRawPayload = null;
+    let currentProcSalesDoc = '4203';
+    let activeProcGroupFilter = 'all';
+
+    /*
+     * Function to get the tag class based on the group
+     */
+    function groupTagClass(grp) {
+        const g = String(grp || '').toUpperCase();
+        if (g.includes('FABRIC')) return 'tag-fabric';
+        if (g.includes('LABEL')) return 'tag-labels';
+        if (g.includes('BUTTON')) return 'tag-button';
+        if (g.includes('THREAD')) return 'tag-threads';
+        if (g.includes('LINING')) return 'tag-lining';
+        return '';
+    }
+
+    function openProcurementModal(salesDoc = '4203') {
+        if (!procModal) return;
+        currentProcSalesDoc = String(salesDoc || '4203').trim();
+        if (procSalesDocLabel) procSalesDocLabel.textContent = currentProcSalesDoc;
+        if (procHeaderMaterial) procHeaderMaterial.textContent = '…';
+        if (procHeaderDesc) procHeaderDesc.textContent = 'Connecting to SAP…';
+        activeProcGroupFilter = 'all';
+        if (procGroupFilters) {
+            procGroupFilters.querySelectorAll('.proc-filter-pill').forEach(p => {
+                p.classList.toggle('active', p.getAttribute('data-group') === 'all');
+            });
+        }
+        if (procSearchInput) procSearchInput.value = '';
+        if (procSearchClear) procSearchClear.hidden = true;
+
+        procModal.hidden = false;
+        procModal.classList.remove('is-hidden');
+        procModal.style.display = 'flex';
+        if (procBackdrop) {
+            procBackdrop.hidden = false;
+            procBackdrop.classList.remove('is-hidden');
+            procBackdrop.style.display = 'block';
+        }
+        document.body.classList.add('sales-detail-open');
+        requestAnimationFrame(() => {
+            procModal.classList.add('is-open');
+        });
+        loadProcurementData(currentProcSalesDoc);
+    }
+
+    function closeProcurementModal() {
+        procModal?.classList.remove('is-open');
+        if (procBackdrop) {
+            procBackdrop.classList.add('is-hidden');
+            procBackdrop.style.display = 'none';
+            procBackdrop.hidden = true;
+        }
+        document.body.classList.remove('sales-detail-open');
+        closePRDrawer();
+        setTimeout(() => {
+            if (procModal && !procModal.classList.contains('is-open')) {
+                procModal.hidden = true;
+                procModal.classList.add('is-hidden');
+                procModal.style.display = 'none';
+            }
+        }, 320);
+    }
+
+    async function loadProcurementData(salesDoc = '4203') {
+        const cleanDoc = String(salesDoc || currentProcSalesDoc || '4203').trim();
+        currentProcSalesDoc = cleanDoc;
+        if (procSalesDocLabel) procSalesDocLabel.textContent = cleanDoc;
+        if (procReloadBtn) procReloadBtn.classList.add('is-loading');
+
+        if (procTableBody) {
+            procTableBody.innerHTML = `
+                <tr>
+                    <td colspan="9" class="proc-loading-container">
+                        <div class="proc-simple-loader">
+                            <div class="proc-spinner-ring"></div>
+                            <div class="proc-loader-title">Connecting to SAP Procurement</div>
+                            <div class="proc-loader-sub">Fetching live component materials, requirements, and orders for <strong>Sales Doc #${escapeHtml(cleanDoc)}</strong>…</div>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }
+
+        const endpoint = cfg.procurementUrl || '/sales/procurement';
+        try {
+            console.log('[Procurement] Live SAP call for Sales Doc:', cleanDoc, `${endpoint}?sales_doc=${encodeURIComponent(cleanDoc)}`);
+            const res = await fetch(`${endpoint}?sales_doc=${encodeURIComponent(cleanDoc)}&_=${Date.now()}`);
+            if (!res.ok) {
+                throw new Error(`HTTP ${res.status}: Failed to load procurement data`);
+            }
+            const payload = await res.json();
+            currentProcRawPayload = payload;
+            currentProcData = payload.data || [];
+
+            if (payload.status === 'error' || !currentProcData.length) {
+                if (procTableBody) {
+                    procTableBody.innerHTML = `
+                        <tr>
+                            <td colspan="9" class="empty-state" style="padding:3.5rem 1rem;text-align:center;">
+                                <span class="material-icons-round" style="font-size:2.4rem;color:${payload.status === 'error' ? '#ef4444' : '#94a3b8'};margin-bottom:0.5rem;display:block;">${payload.status === 'error' ? 'error_outline' : 'inventory_2'}</span>
+                                <div style="font-weight:700;font-size:0.95rem;color:#1e293b;margin-bottom:0.25rem;">${payload.status === 'error' ? 'SAP Procurement Notice' : 'No Components Found'}</div>
+                                <div style="color:#64748b;font-size:0.82rem;">${escapeHtml(payload.error || 'No procurement records returned from SAP for Sales Doc ' + cleanDoc)}</div>
+                            </td>
+                        </tr>
+                    `;
+                }
+                if (procStatComponents) procStatComponents.textContent = '0';
+                if (procStatReq) procStatReq.textContent = '0';
+                if (procStatPR) procStatPR.textContent = '0';
+                if (procStatPO) procStatPO.textContent = '0';
+                if (procStatStock) procStatStock.textContent = '0';
+                if (procFilterCountAll) procFilterCountAll.textContent = '0';
+                if (procFilteredCount) procFilteredCount.textContent = '0 items';
+                return;
+            }
+
+            if (currentProcData.length > 0) {
+                const first = currentProcData[0];
+                if (procHeaderMaterial) procHeaderMaterial.textContent = first.Material || '—';
+                if (procHeaderDesc) procHeaderDesc.textContent = first.MaterialDescription || '—';
+            }
+
+            let totalReq = 0;
+            let totalPR = 0;
+            let totalPO = 0;
+            let totalStock = 0;
+
+            currentProcData.forEach((row) => {
+                totalReq += parseFloat(String(row.RequirementQty || '0').replace(/\s+/g, '')) || 0;
+                totalPR += parseFloat(String(row.TotalPRQty || '0').replace(/\s+/g, '')) || 0;
+                totalPO += parseFloat(String(row.TotalPOQty || '0').replace(/\s+/g, '')) || 0;
+                totalStock += parseFloat(String(row.StockQty || '0').replace(/\s+/g, '')) || 0;
+            });
+
+            if (procStatComponents) procStatComponents.textContent = currentProcData.length;
+            if (procStatReq) procStatReq.textContent = fmtNum(totalReq);
+            if (procStatPR) procStatPR.textContent = fmtNum(totalPR);
+            if (procStatPO) procStatPO.textContent = fmtNum(totalPO);
+            if (procStatStock) procStatStock.textContent = fmtNum(totalStock);
+            if (procFilterCountAll) procFilterCountAll.textContent = currentProcData.length;
+
+            renderProcurementTable(currentProcData);
+        } catch (err) {
+            if (procTableBody) {
+                procTableBody.innerHTML = `<tr><td colspan="9" class="empty-state" style="color:#ef4444">Error: ${escapeHtml(err.message)}</td></tr>`;
+            }
+        } finally {
+            if (procReloadBtn) {
+                setTimeout(() => procReloadBtn.classList.remove('is-loading'), 350);
+            }
+        }
+    }
+
+    function renderProcurementTable(records) {
+        if (!procTableBody) return;
+        const query = procSearchInput?.value?.trim().toLowerCase() || '';
+
+        const filtered = (records || []).filter((r) => {
+            // Group filter
+            if (activeProcGroupFilter !== 'all') {
+                const grp = String(r.MaterialGroup || '').toLowerCase();
+                if (!grp.includes(activeProcGroupFilter)) return false;
+            }
+            if (!query) return true;
+            return (
+                String(r.ComponentMaterial || '').toLowerCase().includes(query) ||
+                String(r.ComponentDescription || '').toLowerCase().includes(query) ||
+                String(r.MaterialGroup || '').toLowerCase().includes(query) ||
+                String(r.ShadeText1 || '').toLowerCase().includes(query)
+            );
+        });
+
+        if (procFilteredCount) {
+            procFilteredCount.textContent = `${filtered.length} of ${records.length} items`;
+        }
+
+        if (!filtered.length) {
+            procTableBody.innerHTML = `<tr><td colspan="9" class="empty-state">No components match "${escapeHtml(query || activeProcGroupFilter)}"</td></tr>`;
+            return;
+        }
+
+        procTableBody.innerHTML = filtered.map((r, i) => {
+            const req = parseFloat(String(r.RequirementQty || '0').replace(/\s+/g, '')) || 0;
+            const pr = parseFloat(String(r.TotalPRQty || '0').replace(/\s+/g, '')) || 0;
+            const po = parseFloat(String(r.TotalPOQty || '0').replace(/\s+/g, '')) || 0;
+            const bal = parseFloat(String(r.BalancePRQty || '0').replace(/\s+/g, '')) || 0;
+            const stock = parseFloat(String(r.StockQty || '0').replace(/\s+/g, '')) || 0;
+            const balColor = bal < 0 ? '#dc2626' : (bal > 0 ? '#d97706' : '#10b981');
+
+            return `
+                <tr class="proc-row" data-idx="${i}" tabindex="0" role="button" title="Click to view ProcurementPRSet details">
+                    <td>
+                        <span class="proc-comp-badge">${escapeHtml(r.ComponentMaterial)}</span>
+                    </td>
+                    <td>
+                        <div class="proc-desc-cell">
+                            <span class="proc-desc-name">${escapeHtml(r.ComponentDescription || '—')}</span>
+                            ${r.ShadeText1 ? `<span class="proc-desc-shade"><span class="material-icons-round" style="font-size:12px">palette</span> Shade: ${escapeHtml(r.ShadeText1)}</span>` : ''}
+                        </div>
+                    </td>
+                    <td><span class="proc-tag ${groupTagClass(r.MaterialGroup)}">${escapeHtml(r.MaterialGroup || '—')}</span></td>
+                    <td class="col-num">${fmtNum(req)}</td>
+                    <td class="col-num" style="font-weight:600;color:#0f172a">${fmtNum(pr)}</td>
+                    <td class="col-num" style="font-weight:600;color:#059669">${fmtNum(po)}</td>
+                    <td class="col-num" style="font-weight:700;color:${balColor}">${fmtNum(bal)}</td>
+                    <td class="col-num" style="font-weight:600;color:#0284c7">${fmtNum(stock)}</td>
+                    <td style="text-align:center">
+                        <button type="button" class="proc-btn-drill" data-action="pr">
+                            <span>PR Set</span>
+                            <span class="material-icons-round" style="font-size:13px">chevron_right</span>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+
+        procTableBody.querySelectorAll('.proc-row').forEach((row, i) => {
+            const item = filtered[i];
+            row.addEventListener('click', () => {
+                procTableBody.querySelectorAll('.proc-row').forEach(r => r.classList.remove('active'));
+                row.classList.add('active');
+                openPRDrawer(item);
+            });
+        });
+    }
+
+    async function openPRDrawer(item) {
+        if (!prDrawer) return;
+        prDrawer.classList.add('open');
+        prDrawer.setAttribute('aria-hidden', 'false');
+
+        if (prDrawerTitle) prDrawerTitle.textContent = item.ComponentMaterial;
+        if (prDrawerSubtitle) prDrawerSubtitle.textContent = item.ComponentDescription || '';
+
+        const uri = item.ProcurementPRSet?.__deferred?.uri
+            || `http://app-prod.evolvclothing.com:8000/sap/opu/odata/sap/ZBUSINESS_API_SRV/ProcurementDashboardSet(SalesDoc='${item.SalesDoc || currentProcSalesDoc}',ComponentMaterial='${encodeURIComponent(item.ComponentMaterial)}')/ProcurementPRSet`;
+
+        if (prDrawerBody) {
+            prDrawerBody.innerHTML = `
+                <div style="padding:2.5rem 1rem;text-align:center;color:#64748b">
+                    <div class="sales-loader-ring" style="margin:0 auto 1rem;width:28px;height:28px;border-width:3px"></div>
+                    <div style="font-weight:600;color:#0f172a">Calling SAP ProcurementPRSet…</div>
+                    <small style="color:#94a3b8;font-size:0.75rem;margin-top:0.25rem;display:block">Retrieving purchase requisition line items</small>
+                </div>
+            `;
+        }
+
+        const endpoint = cfg.procurementPrUrl || '/sales/procurement-pr';
+        try {
+            const params = new URLSearchParams({
+                uri: uri,
+                sales_doc: item.SalesDoc || currentProcSalesDoc,
+                component_material: item.ComponentMaterial || '',
+                _: String(Date.now()),
+            });
+            const res = await fetch(`${endpoint}?${params.toString()}`);
+            if (!res.ok) {
+                throw new Error(`HTTP ${res.status}: Failed to load PR Set`);
+            }
+            const payload = await res.json();
+
+            if (payload.status === 'error') {
+                prDrawerBody.innerHTML = `
+                    <div class="pr-line-card" style="text-align:center;color:#ef4444;padding:2rem">
+                        <span class="material-icons-round" style="font-size:36px;color:#ef4444;margin-bottom:0.5rem">error_outline</span>
+                        <h4 style="margin:0">SAP Request Failed</h4>
+                        <p style="margin:0.25rem 0 0.5rem;font-size:0.8rem">${escapeHtml(payload.error || 'Failed to retrieve PR details from SAP')}</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const prList = payload.data || [];
+
+            if (!prList.length) {
+                prDrawerBody.innerHTML = `
+                    <div class="pr-line-card" style="text-align:center;color:#64748b;padding:2rem">
+                        <span class="material-icons-round" style="font-size:36px;color:#cbd5e1;margin-bottom:0.5rem">info</span>
+                        <h4 style="margin:0;color:#0f172a">No Purchase Requisitions Linked</h4>
+                        <p style="margin:0.25rem 0 1rem;font-size:0.8rem">No PR lines found in SAP for this component material.</p>
+                        <div style="text-align:left;background:#f8fafc;padding:0.75rem;border-radius:0.5rem;font-size:0.75rem;border:1px solid #e2e8f0">
+                            <strong style="color:#0f172a;display:block;margin-bottom:0.35rem">Component Summary:</strong>
+                            <div>Req Qty: <b>${escapeHtml(item.RequirementQty || '0')}</b></div>
+                            <div>Total PR Qty: <b>${escapeHtml(item.TotalPRQty || '0')}</b></div>
+                            <div>Total PO Qty: <b>${escapeHtml(item.TotalPOQty || '0')}</b></div>
+                            <div>Balance PR: <b>${escapeHtml(item.BalancePRQty || '0')}</b></div>
+                            <div>Stock Qty: <b>${escapeHtml(item.StockQty || '0')}</b></div>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+
+            prDrawerBody.innerHTML = `
+                <div style="margin-bottom:1rem;display:flex;justify-content:space-between;align-items:center">
+                    <span style="font-size:0.82rem;font-weight:700;color:#334155">${prList.length} Purchase Requisition Item(s)</span>
+                    <span class="proc-pill proc-pill-live"><span class="pulse-dot"></span> Live SAP</span>
+                </div>
+                ${prList.map((pr) => {
+                const reqQty = parseFloat(String(pr.RequirementQty || '0').replace(/\s+/g, '')) || 0;
+                const prQty = parseFloat(String(pr.PRQty || '0').replace(/\s+/g, '')) || 0;
+                const poQty = parseFloat(String(pr.POQty || '0').replace(/\s+/g, '')) || 0;
+                const balQty = parseFloat(String(pr.BalancePRQty || '0').replace(/\s+/g, '')) || 0;
+                const balColor = balQty < 0 ? '#dc2626' : (balQty > 0 ? '#d97706' : '#10b981');
+                const formattedDate = fmtSapDate(pr.DeliveryDate);
+                const cleanItem = pr.PRItem ? String(parseInt(pr.PRItem, 10)) : '10';
+
+                return `
+                    <div class="pr-line-card">
+                        <div class="pr-line-card-head">
+                            <span class="pr-num">
+                                <span class="material-icons-round" style="font-size:16px;color:#4f46e5">receipt</span> 
+                                PR #${escapeHtml(pr.PRNumber || '—')} · Item ${escapeHtml(cleanItem)}
+                            </span>
+                            <span class="pr-status-badge" style="background:${balQty <= 0 ? '#ecfdf5' : '#fffbeb'};color:${balQty <= 0 ? '#059669' : '#d97706'}">
+                                ${balQty <= 0 ? 'PO Fulfilled' : 'Open PR Balance'}
+                            </span>
+                        </div>
+                        <div class="pr-grid-details">
+                            <div>
+                                <span>Requirement Qty</span>
+                                <strong style="color:#0f172a">${fmtNum(reqQty)}</strong>
+                            </div>
+                            <div>
+                                <span>PR Quantity</span>
+                                <strong style="color:#4f46e5">${fmtNum(prQty)}</strong>
+                            </div>
+                            <div>
+                                <span>PO Quantity</span>
+                                <strong style="color:#059669">${fmtNum(poQty)}</strong>
+                            </div>
+                            <div>
+                                <span>Balance PR Qty</span>
+                                <strong style="color:${balColor}">${fmtNum(balQty)}</strong>
+                            </div>
+                            <div>
+                                <span>Delivery Date</span>
+                                <strong style="color:#0f172a">${escapeHtml(formattedDate)}</strong>
+                            </div>
+                            <div>
+                                <span>Sales Doc</span>
+                                <strong>SO #${escapeHtml(pr.SalesDoc ? String(parseInt(pr.SalesDoc, 10)) : (currentProcSalesDoc || '—'))}</strong>
+                            </div>
+                        </div>
+                    </div>
+                    `;
+            }).join('')}
+            `;
+        } catch (err) {
+            if (prDrawerBody) {
+                prDrawerBody.innerHTML = `
+                    <div class="pr-line-card" style="border-color:#fca5a5;background:#fef2f2;padding:1.5rem">
+                        <h4 style="color:#b91c1c;margin:0 0 0.25rem">Failed to load PR Set</h4>
+                        <p style="margin:0;font-size:0.8rem;color:#7f1d1d">${escapeHtml(err.message)}</p>
+                    </div>
+                `;
+            }
+        }
+    }
+
+    function closePRDrawer() {
+        if (!prDrawer) return;
+        prDrawer.classList.remove('open');
+        prDrawer.setAttribute('aria-hidden', 'true');
+        procTableBody?.querySelectorAll('.proc-row').forEach(r => r.classList.remove('active'));
+    }
+
+    // Bind Procurement UI events
+    procCard?.addEventListener('click', () => {
+        const defaultDoc = currentProcSalesDoc || (lastPayload?.records && lastPayload.records[0]?.sales_order) || '4480';
+        openProcurementModal(defaultDoc);
+    });
+    procCloseBtn?.addEventListener('click', closeProcurementModal);
+    procBackdrop?.addEventListener('click', closeProcurementModal);
+    procReloadBtn?.addEventListener('click', () => loadProcurementData(currentProcSalesDoc));
+    prDrawerClose?.addEventListener('click', closePRDrawer);
+
+    // Group Filter Pills
+    procGroupFilters?.querySelectorAll('.proc-filter-pill').forEach((pill) => {
+        pill.addEventListener('click', () => {
+            procGroupFilters.querySelectorAll('.proc-filter-pill').forEach(p => p.classList.remove('active'));
+            pill.classList.add('active');
+            activeProcGroupFilter = pill.getAttribute('data-group') || 'all';
+            renderProcurementTable(currentProcData);
+        });
+    });
+
+    let procSearchTimer;
+    procSearchInput?.addEventListener('input', () => {
+        if (procSearchClear) procSearchClear.hidden = !procSearchInput.value;
+        clearTimeout(procSearchTimer);
+        procSearchTimer = setTimeout(() => renderProcurementTable(currentProcData), 200);
+    });
+
+    procSearchClear?.addEventListener('click', () => {
+        if (procSearchInput) procSearchInput.value = '';
+        if (procSearchClear) procSearchClear.hidden = true;
+        renderProcurementTable(currentProcData);
+    });
+
+    // Header Right-Side Sales Order Search logic
+    function handleHeaderSoSearch() {
+        const val = headerSoSearchInput?.value?.trim();
+        if (!val) {
+            headerSoSearchInput?.focus();
+            return;
+        }
+        if (headerSoAutocomplete) headerSoAutocomplete.hidden = true;
+        if (searchInput) {
+            searchInput.value = val;
+        }
+        // Filter the entire dashboard by this sales order / search
+        fetchPage(1);
+    }
+
+    btnHeaderSoSearch?.addEventListener('click', handleHeaderSoSearch);
+    headerSoSearchInput?.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            handleHeaderSoSearch();
+        } else if (e.key === 'Escape') {
+            if (headerSoAutocomplete) headerSoAutocomplete.hidden = true;
+        }
+    });
+
+    headerSoSearchInput?.addEventListener('input', () => {
+        const q = headerSoSearchInput.value.trim().toLowerCase();
+        if (headerSoSearchClear) headerSoSearchClear.hidden = !q;
+        if (!q) {
+            if (headerSoAutocomplete) headerSoAutocomplete.hidden = true;
+            return;
+        }
+
+        const seen = new Set();
+        const matches = [];
+        if (lastPayload?.records) {
+            for (const r of lastPayload.records) {
+                const so = String(r.sales_order || '').trim();
+                if (!so || seen.has(so)) continue;
+                if (so.toLowerCase().includes(q) || String(r.material || '').toLowerCase().includes(q)) {
+                    seen.add(so);
+                    matches.push(r);
+                    if (matches.length >= 6) break;
+                }
+            }
+        }
+
+        if (!headerSoAutocomplete) return;
+
+        headerSoAutocomplete.hidden = false;
+        let html = matches.map(m => `
+            <div class="so-autocomplete-item" data-so="${escapeHtml(m.sales_order)}">
+                <div>
+                    <span class="so-match-tag">SO #${escapeHtml(m.sales_order)}</span>
+                    <span class="so-match-meta">${escapeHtml(m.material || '')} · Plant ${escapeHtml(m.plant || '—')}</span>
+                </div>
+                <button type="button" class="so-match-action" data-proc-so="${escapeHtml(m.sales_order)}" title="View Procurement details">
+                    <span>Procurement</span>
+                    <span class="material-icons-round" style="font-size:12px">arrow_forward</span>
+                </button>
+            </div>
+        `).join('');
+
+        // Direct search option for any typed query / SO number
+        html += `
+            <div class="so-autocomplete-item so-autocomplete-direct" data-so="${escapeHtml(q)}">
+                <div>
+                    <span class="so-match-tag" style="background:#e0f2fe;color:#0369a1;border-color:#bae6fd">Search Order #${escapeHtml(q)}</span>
+                    <span class="so-match-meta">Filter entire dashboard to this Sales Order</span>
+                </div>
+                <span class="material-icons-round" style="color:#0284c7">search</span>
+            </div>
+        `;
+
+        headerSoAutocomplete.innerHTML = html;
+
+        headerSoAutocomplete.querySelectorAll('.so-autocomplete-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                const procBtn = e.target.closest('.so-match-action');
+                const so = item.getAttribute('data-so');
+                if (procBtn) {
+                    const procSo = procBtn.getAttribute('data-proc-so') || so;
+                    headerSoAutocomplete.hidden = true;
+                    openProcurementModal(procSo);
+                    return;
+                }
+                if (headerSoSearchInput) headerSoSearchInput.value = so;
+                if (searchInput) searchInput.value = so;
+                headerSoAutocomplete.hidden = true;
+                fetchPage(1);
+            });
+        });
+    });
+
+    headerSoSearchClear?.addEventListener('click', () => {
+        if (headerSoSearchInput) {
+            headerSoSearchInput.value = '';
+            headerSoSearchInput.focus();
+        }
+        if (searchInput) searchInput.value = '';
+        if (headerSoSearchClear) headerSoSearchClear.hidden = true;
+        if (headerSoAutocomplete) headerSoAutocomplete.hidden = true;
+        if (activeFilterBanner) activeFilterBanner.style.display = 'none';
+        fetchPage(1);
+    });
+
+    activeFilterClear?.addEventListener('click', () => {
+        if (headerSoSearchInput) headerSoSearchInput.value = '';
+        if (searchInput) searchInput.value = '';
+        if (headerSoSearchClear) headerSoSearchClear.hidden = true;
+        if (activeFilterBanner) activeFilterBanner.style.display = 'none';
+        fetchPage(1);
+    });
+
+    // Clicking Card 1 (Total Sales Orders) focuses the table search
+    ordersKpiCard?.addEventListener('click', () => {
+        if (searchInput) {
+            searchInput.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            setTimeout(() => {
+                searchInput.focus();
+                searchInput.select();
+            }, 300);
+        }
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('#headerSoSearch') && headerSoAutocomplete) {
+            headerSoAutocomplete.hidden = true;
+        }
+    });
+
+    // Close modal / subdrawer on Escape
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+            if (subDrawer && subDrawer.classList.contains('open')) {
+                closeSubDrawer();
+                return;
+            }
+            if (drawer && drawer.classList.contains('open')) {
+                closeDetail();
+                return;
+            }
+            if (procModal && !procModal.hidden && !procModal.classList.contains('is-hidden')) {
+                if (prDrawer && prDrawer.classList.contains('open')) {
+                    closePRDrawer();
+                } else {
+                    closeProcurementModal();
+                }
+                return;
+            }
+        }
+    });
+
 
     window.addEventListener('evolv:periodchange', (e) => {
         const { from, to } = e.detail || {};
         if (!from || !to) return;
+        if (from === currentFrom && to === currentTo && lastPayload) return;
         currentFrom = from;
         currentTo = to;
         if (periodBadge) {
@@ -708,14 +4195,25 @@
     });
 
     initCharts();
+    initTableSortAndFilters();
 
     // Launch spinner immediately (HTML already has is-loading)
     document.body.classList.add('sales-launch-loading');
     showSalesLoader(true, { launch: true });
 
+    const pad = (n) => String(n).padStart(2, '0');
+    const fmt = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
     const now = new Date();
-    currentFrom = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
-    const initToDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-    currentTo = `${initToDate.getFullYear()}-${String(initToDate.getMonth() + 1).padStart(2, '0')}-${String(initToDate.getDate()).padStart(2, '0')}`;
+    const day = now.getDay();
+    const diff = day === 0 ? -6 : 1 - day;
+    const startOfWeek = new Date(now);
+    startOfWeek.setDate(now.getDate() + diff);
+    const endOfWeek = new Date(startOfWeek);
+    endOfWeek.setDate(startOfWeek.getDate() + 6);
+
+    const cfgFrom = (window.SALES_PAGE && window.SALES_PAGE.defaultFrom) || fmt(startOfWeek);
+    const cfgTo = (window.SALES_PAGE && window.SALES_PAGE.defaultTo) || fmt(endOfWeek);
+    currentFrom = cfgFrom;
+    currentTo = cfgTo;
     fetchPage(1);
 })();

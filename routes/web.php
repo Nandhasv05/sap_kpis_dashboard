@@ -24,6 +24,11 @@ $router->get('reports', [ReportController::class, 'index']);
 // START SALES ROUTE
 $router->get('sales', [SalesController::class, 'index']);
 $router->get('sales/data', [SalesController::class, 'data']);
+$router->get('api/sales', [SalesController::class, 'data']);
+$router->get('sales/procurement', [SalesController::class, 'procurementData']);
+$router->get('sales/procurement-pr', [SalesController::class, 'procurementPrData']);
+$router->get('sales/bom', [SalesController::class, 'bomData']);
+$router->get('sales/material-api', [SalesController::class, 'materialApiData']);
 
 // START MATERIAL ROUTE (ZI_SalesApi_HUB)
 $router->get('material', [MaterialController::class, 'index']);

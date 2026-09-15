@@ -2,6 +2,7 @@
 // AUTHOR : NANDHAKUMAR S V
 // DATE : 03/09/2026
 // DESCRIPTION : Kapis layout — filter bar + Sales / Material / Planning
+
 $activeNav = $activeNav ?? 'sales';
 $pageTitle = $pageTitle ?? 'KPIS';
 $primaryColor = $primaryColor ?? '#1b5e4b';
@@ -63,47 +64,32 @@ $logoUrl = asset('assets/logo.png');
 
     <div class="kapis-bar">
         <div class="kapis-bar-left">
-            <a href="<?= e(url()) ?>" class="kapis-brand" aria-label="evolv">
+            <a href="<?= e(url()) ?>" class="kapis-brand" aria-label="evolv" title="evolv">
                 <img src="<?= e($logoUrl) ?>" alt="evolv">
             </a>
-            <a href="<?= e($portalHome) ?>" class="kapis-home" aria-label="Portal home">
+            <a href="<?= e($portalHome) ?>" class="kapis-home" aria-label="Portal home" title="Back to Portal Home">
                 <span class="material-icons-round">home</span>
             </a>
-            <div class="kapis-dash-name" id="pageName"><?= e($dashboardName) ?></div>
         </div>
-
-        <nav class="kapis-tabs" aria-label="KPIS dashboards">
-            <a href="<?= e(kapis_dash_url('sales')) ?>" class="kapis-tab <?= $activeNav === 'sales' ? 'active' : '' ?>">
-                <span class="material-icons-round">point_of_sale</span>
-                Sales
-            </a>
-            <a href="<?= e(kapis_dash_url('material')) ?>" class="kapis-tab <?= $activeNav === 'material' ? 'active' : '' ?>">
-                <span class="material-icons-round">texture</span>
-                Material
-            </a>
-            <a href="<?= e(kapis_dash_url('planning')) ?>" class="kapis-tab <?= $activeNav === 'planning' ? 'active' : '' ?>">
-                <span class="material-icons-round">event_note</span>
-                Planning
-            </a>
-        </nav>
 
         <div class="kapis-bar-right">
             <div class="period-filter" id="periodFilter">
-                <button type="button" class="period-trigger" id="periodTrigger" aria-haspopup="listbox" aria-expanded="false">
+                <button type="button" class="period-trigger" id="periodTrigger" aria-haspopup="listbox" aria-expanded="false" title="Filter by date condition">
                     <span class="material-icons-round">calendar_today</span>
-                    <span id="periodTriggerLabel">This Month</span>
+                    <span id="periodTriggerLabel"><?= e($periodLabel ?? 'This Week') ?></span>
                     <span class="material-icons-round chev">expand_more</span>
                 </button>
                 <div class="period-menu" id="periodMenu" role="listbox" hidden>
                     <button type="button" class="period-option" data-period="today">Today</button>
                     <button type="button" class="period-option" data-period="yesterday">Yesterday</button>
-                    <button type="button" class="period-option" data-period="this_week">This Week</button>
+                    <button type="button" class="period-option active" data-period="this_week">This Week</button>
                     <button type="button" class="period-option" data-period="prev_week">Previous Week</button>
-                    <button type="button" class="period-option active" data-period="this_month">This Month</button>
+                    <button type="button" class="period-option" data-period="this_month">This Month</button>
                     <button type="button" class="period-option" data-period="prev_month">Previous Month</button>
                     <button type="button" class="period-option" data-period="custom">Custom Date</button>
                 </div>
             </div>
+
             <div class="account" id="account">
                 <button type="button" class="avatar" id="accountBtn" aria-label="Account" aria-expanded="false" aria-haspopup="menu">
                     <?= e($portalInitial) ?>
