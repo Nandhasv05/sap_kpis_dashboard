@@ -88,7 +88,7 @@ class SalesController extends Controller
             'page'      => max(1, (int) ($_GET['page'] ?? 1)),
             'per_page'  => $export
                 ? min(8000, max(1, (int) ($_GET['per_page'] ?? 8000)))
-                : min(100, max(10, (int) ($_GET['per_page'] ?? 25))),
+                : min(100, max(10, (int) ($_GET['per_page'] ?? 10))),
             'year'      => $year,
         ];
 

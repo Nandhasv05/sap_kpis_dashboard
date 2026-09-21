@@ -27,7 +27,7 @@ $logoUrl = asset('assets/logo.png');
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title><?= e($pageTitle) ?> — <?= e($brandName) ?></title>
     <link rel="icon" type="image/png" href="<?= e($logoUrl) ?>">
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -70,9 +70,28 @@ $logoUrl = asset('assets/logo.png');
             <a href="<?= e($portalHome) ?>" class="kapis-home" aria-label="Portal home" title="Back to Portal Home">
                 <span class="material-icons-round">home</span>
             </a>
+            <div class="kapis-bar-title">
+                <span class="kapis-bar-kicker">Live SAP</span>
+                <strong><?= e($dashboardName) ?></strong>
+            </div>
         </div>
 
         <div class="kapis-bar-right">
+            <?php if (($activeNav ?? '') === 'sales'): ?>
+            <div class="header-so-search" id="headerSoSearch">
+                <div class="header-so-search-wrap" id="headerSoSearchWrap">
+                    <span class="material-icons-round header-search-ico">search</span>
+                    <input type="search" id="headerSoSearchInput" placeholder="Search sales order…" autocomplete="off" aria-label="Search sales order">
+                    <button type="button" class="header-search-clear" id="headerSoSearchClear" hidden aria-label="Clear sales order search">
+                        <span class="material-icons-round">close</span>
+                    </button>
+                    <button type="button" class="header-search-btn" id="btnHeaderSoSearch" title="Search sales order">
+                        <span class="material-icons-round">arrow_forward</span>
+                    </button>
+                </div>
+                <div class="header-so-autocomplete" id="headerSoAutocomplete" hidden></div>
+            </div>
+            <?php endif; ?>
             <div class="period-filter" id="periodFilter">
                 <button type="button" class="period-trigger" id="periodTrigger" aria-haspopup="listbox" aria-expanded="false" title="Filter by date condition">
                     <span class="material-icons-round">calendar_today</span>

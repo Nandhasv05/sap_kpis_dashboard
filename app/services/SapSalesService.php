@@ -61,15 +61,15 @@ class SapSalesService
      */
     public function getSalesData(array $filters = []): array
     {
-        @ini_set('memory_limit', '512M');
-        @set_time_limit(60);
-
         $page = max(1, (int) ($filters['page'] ?? 1));
         $perPage = min(8000, max(1, (int) ($filters['per_page'] ?? 25)));
         $search = trim((string) ($filters['search'] ?? $filters['q'] ?? ''));
         $from = trim((string) ($filters['from_date'] ?? $filters['from'] ?? ''));
         $to = trim((string) ($filters['to_date'] ?? $filters['to'] ?? ''));
         $year = (int) ($filters['year'] ?? (int) date('Y'));
+
+        @ini_set('memory_limit', '512M');
+        @set_time_limit(45);
 
         // Check if explicit sales_order parameter or if search/q looks like a SalesOrder (e.g. 3239, 0000003239, SO 3239)
         $soSearch = null;
@@ -119,7 +119,10 @@ class SapSalesService
                         $this->ingestRow($row, $state, $year);
                     }
                 }
-            }, ['$filter' => $filterExpr]);
+            }, [
+                '$filter'  => $filterExpr,
+                '$orderby' => 'CreationDate desc',
+            ]);
 
             if ($state['row_count'] === 0 && !empty($queryResult['error'])) {
                 $sapError = $queryResult['error'];
@@ -181,7 +184,7 @@ class SapSalesService
         $charts = $this->buildChartsFromRecords($filtered);
 
         if ($sapError !== null && $total === 0) {
-            return [
+            $payload = [
                 'success' => false,
                 'message' => 'Unable to fetch sales data from SAP: ' . $sapError,
                 'error'   => $sapError,
@@ -210,9 +213,10 @@ class SapSalesService
                     ],
                 ],
             ];
+            return $payload;
         }
 
-        return [
+        $payload = [
             'success'  => true,
             'message'  => 'Sales data fetched successfully',
             'records'  => $slice,
@@ -240,6 +244,7 @@ class SapSalesService
                 ],
             ],
         ];
+        return $payload;
     }
 
     /*

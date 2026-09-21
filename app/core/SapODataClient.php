@@ -140,7 +140,7 @@ class SapODataClient
     {
         $username = (string) ($this->cfg['username'] ?? '');
         $password = (string) ($this->cfg['password'] ?? '');
-        $timeout = (int) ($this->cfg['timeout'] ?? 45);
+        $timeout = (int) ($this->cfg['timeout'] ?? 25);
 
         if ($username === '' || $password === '') {
             return ['body' => null, 'error' => 'SAP credentials are not configured.'];
@@ -158,14 +158,17 @@ class SapODataClient
      */
     private function requestViaCurl(string $url, string $username, string $password, int $timeout): array
     {
+        $timeout = max(5, $timeout);
+        $connectTimeout = (int) ($this->cfg['connect_timeout'] ?? min(8, $timeout));
         $ch = curl_init($url);
         $opts = [
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_HTTPAUTH       => CURLAUTH_BASIC,
             CURLOPT_USERPWD        => $username . ':' . $password,
             CURLOPT_TIMEOUT        => $timeout,
-            CURLOPT_CONNECTTIMEOUT => min(15, $timeout),
-            CURLOPT_HTTPHEADER     => ['Accept: application/json'],
+            CURLOPT_CONNECTTIMEOUT => $connectTimeout,
+            CURLOPT_ENCODING       => '',
+            CURLOPT_HTTPHEADER     => ['Accept: application/json', 'Accept-Encoding: gzip, deflate'],
         ];
         $resolve = $this->cfg['resolve'] ?? [];
         if (is_array($resolve) && $resolve !== []) {

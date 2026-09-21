@@ -4,7 +4,7 @@
  * DATE : 21/09/2026
  * DESCRIPTION : Sales hub — colorful charts, loader, and detail dashboards
  * 
- */
+*/
 $currencySymbol = $currencySymbol ?? '$';
 $year = (int) ($year ?? date('Y'));
 $sapError = $sapError ?? null;
@@ -28,7 +28,7 @@ window.SALES_PAGE = {
     defaultFrom: <?= json_encode($defaultFrom ?? '') ?>,
     defaultTo: <?= json_encode($defaultTo ?? '') ?>,
     defaultLabel: 'This Week',
-    pageSize: 25
+    pageSize: 10
 };
 </script>
 <script src="<?= e(asset('js/sales.js')) ?>"></script>
@@ -70,46 +70,53 @@ $extraScripts = ob_get_clean();
         </div>
     </div>
     <?php endif; ?>
-    <div class="sales-filter-banner" id="salesActiveFilterBanner" style="display:none">
-        <div class="sales-filter-banner-left">
-            <span class="material-icons-round">filter_alt</span>
-            <span>Dashboard filtered by: <strong id="salesActiveFilterText">—</strong></span>
-        </div>
-        <button type="button" class="sales-filter-banner-clear" id="salesActiveFilterClear" title="Clear filter and show all live data">
-            <span class="material-icons-round">close</span>
-            <span>Clear filter</span>
-        </button>
-    </div>
-
     <div class="kpi-grid sales-kpi-grid">
         <!-- 1. Net Sales -->
         <div class="kpi-card proj-card tone-sky" role="button" tabindex="0" data-kpi="net" title="Total Net Sales">
+            <div class="kpi-icon"><span class="material-icons-round">payments</span></div>
             <div class="kpi-info">
                 <div class="label">Net Sales</div>
-                <div class="value" id="skNet">—</div>
+                <div class="kpi-value-row">
+                    <div class="value" id="skNet">—</div>
+                    <!-- <span class="kpi-delta" id="skNetDelta" hidden></span> -->
+                </div>
                 <div class="change" id="skNetNote">Filtered net amount</div>
             </div>
-            <div class="kpi-icon"><span class="material-icons-round">payments</span></div>
+            <div class="kpi-spark" id="skNetSpark" aria-hidden="true">
+                <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+            </div>
         </div>
 
         <!-- 2. Order Quantity -->
         <div class="kpi-card proj-card tone-mint" role="button" tabindex="0" data-kpi="qty" title="Total Order Quantity">
+            <div class="kpi-icon"><span class="material-icons-round">inventory_2</span></div>
             <div class="kpi-info">
                 <div class="label">Order Quantity</div>
-                <div class="value" id="skQty">—</div>
+                <div class="kpi-value-row">
+                    <div class="value" id="skQty">—</div>
+                    <!-- <span class="kpi-delta" id="skQtyDelta" hidden></span> -->
+                </div>
                 <div class="change">Units in selected period</div>
             </div>
-            <div class="kpi-icon"><span class="material-icons-round">inventory_2</span></div>
+            <div class="kpi-spark" id="skQtySpark" aria-hidden="true">
+                <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+            </div>
         </div>
 
         <!-- 3. Sales Orders -->
         <div class="kpi-card proj-card tone-amber" role="button" tabindex="0" data-kpi="orders" title="Total Sales Orders (Click to search in table)">
+            <div class="kpi-icon"><span class="material-icons-round">shopping_bag</span></div>
             <div class="kpi-info">
-                <div class="label">Sales Orders</div>
-                <div class="value" id="skOrders">—</div>
+                <div class="label">Orders</div>
+                <div class="kpi-value-row">
+                    <div class="value" id="skOrders">—</div>
+                    <!-- <span class="kpi-delta" id="skOrdersDelta" hidden></span> -->
+                </div>
                 <div class="change">Distinct orders</div>
             </div>
-            <div class="kpi-icon"><span class="material-icons-round">receipt_long</span></div>
+            <div class="kpi-spark" id="skOrdersSpark" aria-hidden="true">
+                <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+            </div>
         </div>
     </div>
 
@@ -168,6 +175,9 @@ $extraScripts = ob_get_clean();
                     <div class="sales-search-wrap">
                         <span class="material-icons-round search-icon">search</span>
                         <input type="search" id="salesSearch" placeholder="Search order, material, plant, status…" autocomplete="off">
+                        <button type="button" class="sales-search-clear" id="salesSearchClear" hidden aria-label="Clear search">
+                            <span class="material-icons-round">close</span>
+                        </button>
                         <button type="button" class="sales-search-btn" id="btnSalesSearchSubmit" title="Search">
                             <span class="material-icons-round">arrow_forward</span>
                         </button>
@@ -285,18 +295,17 @@ $extraScripts = ob_get_clean();
 </section>
 
 <div class="sales-detail-backdrop" id="salesDetailBackdrop" hidden></div>
-<aside class="sales-detail-drawer" id="salesDetailDrawer" aria-hidden="true" role="dialog" aria-labelledby="salesDetailTitle">
-    <!-- Modern Header with Badges and Actions -->
-    <div class="sales-detail-head">
+<aside class="sales-detail-drawer so-sheet" id="salesDetailDrawer" aria-hidden="true" role="dialog" aria-labelledby="salesDetailTitle">
+    <header class="sales-detail-head">
         <div class="sales-detail-head-meta">
             <div class="sales-detail-badges">
-                <span class="so-badge-pill" id="salesDetailSoPill"><span class="material-icons-round">receipt_long</span> SO #<strong id="salesDetailSoNum">—</strong></span>
-                <span class="so-badge-pill so-badge-line" id="salesDetailLinePill">Line <strong id="salesDetailLineNum">—</strong></span>
-                <span class="so-badge-pill so-badge-plant" id="salesDetailPlantPill">Plant <strong id="salesDetailPlantNum">—</strong></span>
+                <span class="so-badge-pill"><span class="material-icons-round">receipt_long</span> SO # <strong id="salesDetailSoNum">—</strong></span>
+                <span class="so-badge-pill so-badge-line"><span class="material-icons-round">view_list</span> Line <strong id="salesDetailLineNum">—</strong></span>
+                <span class="so-badge-pill so-badge-plant"><span class="material-icons-round">factory</span> Plant <strong id="salesDetailPlantNum">—</strong></span>
                 <span class="sales-status-pill" id="salesDetailStatusPill">Active</span>
-                <span class="so-badge-pill so-badge-net" id="salesDetailNetPill"><span class="material-icons-round">payments</span> Net <strong id="salesDetailNetVal">—</strong></span>
-                <span class="so-badge-pill so-badge-qty" id="salesDetailQtyPill"><span class="material-icons-round">inventory_2</span> Qty <strong id="salesDetailQtyVal">—</strong></span>
-                <span class="so-badge-pill so-badge-date" id="salesDetailDatePill"><span class="material-icons-round">event</span> Date <strong id="salesDetailDateVal">—</strong></span>
+                <span class="so-badge-pill so-badge-net"><span class="material-icons-round">payments</span> Net <strong id="salesDetailNetVal">—</strong></span>
+                <span class="so-badge-pill so-badge-qty"><span class="material-icons-round">inventory_2</span> Qty <strong id="salesDetailQtyVal">—</strong></span>
+                <span class="so-badge-pill so-badge-date"><span class="material-icons-round">event</span> Date <strong id="salesDetailDateVal">—</strong></span>
             </div>
             <h3 id="salesDetailTitle" class="sales-detail-title">—</h3>
             <p class="sales-detail-sub" id="salesDetailSub">—</p>
@@ -304,98 +313,73 @@ $extraScripts = ob_get_clean();
         <button type="button" class="icon-btn sales-drawer-close-btn" id="salesDetailClose" aria-label="Close details" title="Close">
             <span class="material-icons-round">close</span>
         </button>
-    </div>
+    </header>
 
-    <!-- 4 Interactive Domain Cards: Planning, BOM, Material, Procurement -->
-    <div class="sales-drawer-nav-cards" id="salesDrawerNavCards" role="tablist" aria-label="Order Domain Categories">
-        <!-- 1. Planning Card -->
-        <button type="button" class="drawer-nav-card card-planning" data-tab="planning" role="tab" aria-selected="false" id="tabCardPlanning">
+    <nav class="sales-drawer-nav-cards" id="salesDrawerNavCards" role="tablist" aria-label="Order sections">
+        <button type="button" class="drawer-nav-card card-planning" data-tab="planning" role="tab" id="tabCardPlanning">
             <div class="dnc-top">
-                <div class="dnc-icon-wrap tone-blue">
-                    <span class="material-icons-round">event_available</span>
-                </div>
+                <span class="dnc-icon-wrap"><span class="material-icons-round">event_available</span></span>
                 <span class="dnc-tag">Schedule</span>
             </div>
             <div class="dnc-header-group">
                 <span class="dnc-eyebrow">Delivery &amp; Schedule</span>
-                <div class="dnc-title">Planning</div>
+                <span class="dnc-title">Planning</span>
             </div>
             <div class="dnc-metric-box">
                 <span class="dnc-metric-label">Confirmed Quantity</span>
-                <div class="dnc-value" id="dncPlanningVal">—</div>
+                <span class="dnc-value" id="dncPlanningVal">—</span>
             </div>
-            <div class="dnc-footer">
-                <span class="dnc-footer-txt">View Schedule</span>
-                <span class="material-icons-round dnc-arrow">arrow_forward</span>
-            </div>
+            <div class="dnc-footer">View Schedule <span class="material-icons-round dnc-arrow">arrow_forward</span></div>
         </button>
 
-        <!-- 2. BOM Card -->
-        <button type="button" class="drawer-nav-card card-bom" data-tab="bom" role="tab" aria-selected="false" id="tabCardBom">
+        <button type="button" class="drawer-nav-card card-bom" data-tab="bom" role="tab" id="tabCardBom">
             <div class="dnc-top">
-                <div class="dnc-icon-wrap tone-teal">
-                    <span class="material-icons-round">schema</span>
-                </div>
+                <span class="dnc-icon-wrap"><span class="material-icons-round">schema</span></span>
                 <span class="dnc-tag">BOM</span>
             </div>
             <div class="dnc-header-group">
                 <span class="dnc-eyebrow">Bill of Materials</span>
-                <div class="dnc-title">BOM Explosion</div>
+                <span class="dnc-title">BOM Explosion</span>
             </div>
             <div class="dnc-metric-box">
                 <span class="dnc-metric-label">Component Status</span>
-                <div class="dnc-value" id="dncBomVal">—</div>
+                <span class="dnc-value" id="dncBomVal">Live SAP BOM</span>
             </div>
-            <div class="dnc-footer">
-                <span class="dnc-footer-txt">Explore BOM</span>
-                <span class="material-icons-round dnc-arrow">arrow_forward</span>
-            </div>
+            <div class="dnc-footer">Explore BOM <span class="material-icons-round dnc-arrow">arrow_forward</span></div>
         </button>
 
-        <!-- 3. Material Card -->
-        <button type="button" class="drawer-nav-card card-material" data-tab="material" role="tab" aria-selected="false" id="tabCardMaterial">
+        <button type="button" class="drawer-nav-card card-material" data-tab="material" role="tab" id="tabCardMaterial">
             <div class="dnc-top">
-                <div class="dnc-icon-wrap tone-amber">
-                    <span class="material-icons-round">inventory_2</span>
-                </div>
+                <span class="dnc-icon-wrap"><span class="material-icons-round">inventory_2</span></span>
                 <span class="dnc-tag">Master</span>
             </div>
             <div class="dnc-header-group">
                 <span class="dnc-eyebrow">Material Specs &amp; Hierarchy</span>
-                <div class="dnc-title">Material Master</div>
+                <span class="dnc-title">Material Master</span>
             </div>
             <div class="dnc-metric-box">
                 <span class="dnc-metric-label">Parent Material Code</span>
-                <div class="dnc-value font-mono" id="dncMaterialVal">—</div>
+                <span class="dnc-value font-mono" id="dncMaterialVal">—</span>
             </div>
-            <div class="dnc-footer">
-                <span class="dnc-footer-txt">View Specs</span>
-                <span class="material-icons-round dnc-arrow">arrow_forward</span>
-            </div>
+            <div class="dnc-footer">View Specs <span class="material-icons-round dnc-arrow">arrow_forward</span></div>
         </button>
 
-        <!-- 4. Procurement Card -->
-        <button type="button" class="drawer-nav-card card-procurement" data-tab="procurement" role="tab" aria-selected="false" id="tabCardProcurement">
+        <button type="button" class="drawer-nav-card card-procurement" data-tab="procurement" role="tab" id="tabCardProcurement">
             <div class="dnc-top">
-                <div class="dnc-icon-wrap tone-purple">
-                    <span class="material-icons-round">local_shipping</span>
-                </div>
+                <span class="dnc-icon-wrap"><span class="material-icons-round">local_shipping</span></span>
                 <span class="dnc-tag proc-live-tag"><span class="pulse-dot"></span> Live SAP</span>
             </div>
             <div class="dnc-header-group">
                 <span class="dnc-eyebrow">Demand &amp; Supply Chain</span>
-                <div class="dnc-title">Procurement</div>
+                <span class="dnc-title">Procurement</span>
             </div>
             <div class="dnc-metric-box">
                 <span class="dnc-metric-label">SAP PR &amp; PO Records</span>
-                <div class="dnc-value" id="dncProcVal">—</div>
+                <span class="dnc-value" id="dncProcVal">Syncing...</span>
             </div>
-            <div class="dnc-footer">
-                <span class="dnc-footer-txt">Open Dashboard</span>
-                <span class="material-icons-round dnc-arrow">arrow_forward</span>
-            </div>
+            <div class="dnc-footer">Open Dashboard <span class="material-icons-round dnc-arrow">arrow_forward</span></div>
         </button>
-    </div>
+    </nav>
 
     <!-- Detail Sub-Offcanvas (Opens when any card is clicked, with Back button) -->
     <div class="sales-subdrawer" id="salesSubDrawer" aria-hidden="true">

@@ -473,4 +473,44 @@
     document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') closeKpiModal();
     });
+
+    window.kapisEmptyHtml = function (title, hint) {
+        const t = String(title || 'No data found');
+        const h = String(hint || 'Nothing matched this filter. Try another date range or search.');
+        return `<div class="kapis-empty-anim">
+            <svg class="kapis-empty-scene" viewBox="0 0 160 120" aria-hidden="true">
+                <g class="kapis-empty-box">
+                    <rect x="28" y="48" width="84" height="52" rx="10" fill="#eef2ff" stroke="#c7d2fe" stroke-width="2"/>
+                    <path d="M40 48 V40 a20 14 0 0 1 60 0 v8" fill="none" stroke="#a5b4fc" stroke-width="3" stroke-linecap="round"/>
+                    <g class="kapis-empty-dots" fill="#6366f1">
+                        <circle cx="52" cy="74" r="3.2"/>
+                        <circle cx="70" cy="74" r="3.2"/>
+                        <circle cx="88" cy="74" r="3.2"/>
+                    </g>
+                </g>
+                <g class="kapis-empty-glass">
+                    <circle cx="108" cy="38" r="16" fill="#fff" stroke="#f59e0b" stroke-width="4"/>
+                    <path d="M120 50 L132 64" stroke="#f59e0b" stroke-width="5" stroke-linecap="round"/>
+                </g>
+            </svg>
+            <strong>${t.replace(/[<>]/g, '')}</strong>
+            <span>${h.replace(/[<>]/g, '')}</span>
+        </div>`;
+    };
+
+    window.kapisFetch = async function (url, options, timeoutMs) {
+        const ctrl = new AbortController();
+        const wait = timeoutMs || 32000;
+        const timer = setTimeout(() => ctrl.abort(), wait);
+        try {
+            return await fetch(url, Object.assign({}, options || {}, { signal: ctrl.signal }));
+        } catch (err) {
+            if (err && err.name === 'AbortError') {
+                throw new Error('Request timed out. Try a smaller date range or search by sales order.');
+            }
+            throw err;
+        } finally {
+            clearTimeout(timer);
+        }
+    };
 })();

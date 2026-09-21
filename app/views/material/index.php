@@ -25,11 +25,15 @@ $extraScripts = ob_get_clean();
 ?>
 
 <section class="sales-hub material-hub is-loading" id="materialHub">
-    <div class="sales-loader sales-loader--launch" id="materialLoader" role="status" aria-live="polite">
-        <div class="sales-loader-ring" aria-hidden="true"></div>
-        <strong>Loading SAP materials</strong>
-        <span id="materialLoaderNote">Connecting to ZI_MaterialAPI_HUB…</span>
-        <span class="sales-loader-hint">Pulling product, plant, group, and brand master lines from Material API Hub.</span>
+    <div class="sales-loader is-on sales-loader--launch" id="materialLoader" role="status" aria-live="polite">
+        <div class="sales-loader-panel">
+            <div class="sales-spinner" aria-hidden="true">
+                <span class="sales-spinner-ring sales-spinner-ring--outer"></span>
+                <span class="sales-spinner-ring sales-spinner-ring--inner"></span>
+            </div>
+            <strong>Loading SAP materials</strong>
+            <span class="sales-loader-hint" id="materialLoaderNote">Connecting to ZI_MaterialAPI_HUB…</span>
+        </div>
     </div>
 
     <?php if (!empty($sapError)): ?>

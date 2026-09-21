@@ -374,3 +374,32 @@
     .mat-hero-chips { justify-content: flex-start; }
     .mat-boards { grid-template-columns: 1fr; }
 }
+
+@media (max-width: 768px) {
+    .mat-hero {
+        padding: 1rem 1.05rem;
+        border-radius: 1rem;
+    }
+
+    .mat-table-card {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        max-width: 100%;
+    }
+
+    .mat-table {
+        min-width: 640px;
+    }
+
+    .mat-pager {
+        flex-wrap: wrap;
+        justify-content: space-between !important;
+    }
+}
+
+@media (max-width: 480px) {
+    .mat-hero h1,
+    .mat-hero h2 {
+        font-size: 1.2rem;
+    }
+}

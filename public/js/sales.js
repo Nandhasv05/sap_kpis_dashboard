@@ -22,7 +22,7 @@
     ];
 
     let currentPage = 1;
-    let pageSize = cfg.pageSize || 10;
+    let pageSize = 10;
     let currentFrom = '';
     let currentTo = '';
     let loading = false;
@@ -42,6 +42,7 @@
     const pageNumbersContainer = document.getElementById('salesPageNumbers');
     const searchInput = document.getElementById('salesSearch');
     const pageSizeSelect = document.getElementById('salesPageSize');
+    pageSize = Math.max(10, parseInt(pageSizeSelect?.value, 10) || cfg.pageSize || 10);
     const exportWrap = document.getElementById('salesExport');
     const exportBtn = document.getElementById('salesExportBtn');
     const exportMenu = document.getElementById('salesExportMenu');
@@ -137,10 +138,31 @@
     const btnHeaderSoSearch = document.getElementById('btnHeaderSoSearch');
     const headerSoAutocomplete = document.getElementById('headerSoAutocomplete');
     const headerSoSearchWrap = document.getElementById('headerSoSearchWrap');
+    const salesSearchClear = document.getElementById('salesSearchClear');
     const ordersKpiCard = document.querySelector('[data-kpi="orders"]');
     const activeFilterBanner = document.getElementById('salesActiveFilterBanner');
     const activeFilterText = document.getElementById('salesActiveFilterText');
     const activeFilterClear = document.getElementById('salesActiveFilterClear');
+
+    function getDashboardSearchTerm() {
+        return String(headerSoSearchInput?.value || searchInput?.value || '').trim();
+    }
+
+    function setDashboardSearchTerm(value) {
+        const v = value == null ? '' : String(value);
+        if (headerSoSearchInput && headerSoSearchInput.value !== v) headerSoSearchInput.value = v;
+        if (searchInput && searchInput.value !== v) searchInput.value = v;
+        const empty = !v.trim();
+        if (headerSoSearchClear) headerSoSearchClear.hidden = empty;
+        if (salesSearchClear) salesSearchClear.hidden = empty;
+    }
+
+    function clearDashboardSearch(refetch = true) {
+        setDashboardSearchTerm('');
+        if (headerSoAutocomplete) headerSoAutocomplete.hidden = true;
+        if (activeFilterBanner) activeFilterBanner.style.display = 'none';
+        if (refetch) fetchPage(1);
+    }
 
     if (backdrop && backdrop.parentElement !== document.body) {
         document.body.appendChild(backdrop);
@@ -293,6 +315,13 @@
     /*
     * FUNTION OF SHOW SALES LOADER
     */
+    function emptyRowHtml(title, hint, cols) {
+        const html = (typeof window.kapisEmptyHtml === 'function')
+            ? window.kapisEmptyHtml(title, hint)
+            : `<div class="empty-state">${title}<br>${hint || ''}</div>`;
+        return `<tr><td colspan="${cols || 10}" class="empty-state">${html}</td></tr>`;
+    }
+
     function showSalesLoader(active) {
         const loader = document.getElementById('salesLoader');
         if (hub) hub.classList.toggle('is-loading', active);
@@ -309,6 +338,7 @@
         }
         if (loader) {
             loader.classList.toggle('is-on', active);
+            loader.classList.toggle('sales-loader--launch', active);
             loader.setAttribute('aria-hidden', active ? 'false' : 'true');
             if (loader.parentElement !== document.documentElement) {
                 document.documentElement.appendChild(loader);
@@ -366,8 +396,8 @@
     */
     function applyFilter(value) {
         const term = String(value || '').replace(/^SO\s+/i, '').trim();
-        if (!term || !searchInput) return;
-        searchInput.value = term;
+        if (!term) return;
+        setDashboardSearchTerm(term);
         fetchPage(1);
     }
 
@@ -479,6 +509,14 @@
             }
         });
 
+        if (drawerNavCards) {
+            drawerNavCards.querySelectorAll('.so-sheet-tab, .drawer-nav-card, .so-module').forEach((btn) => {
+                const on = btn.getAttribute('data-tab') === tabName;
+                btn.classList.toggle('active', on);
+                btn.setAttribute('aria-selected', on ? 'true' : 'false');
+            });
+        }
+
         if (tabName === 'planning') {
             renderPlanningPanel(currentDrawerRecord);
         } else if (tabName === 'bom') {
@@ -534,6 +572,12 @@
             subDrawer.setAttribute('aria-hidden', 'true');
         }
         activeDrawerTab = null;
+        if (drawerNavCards) {
+            drawerNavCards.querySelectorAll('.so-sheet-tab, .drawer-nav-card, .so-module').forEach((btn) => {
+                btn.classList.remove('active');
+                btn.setAttribute('aria-selected', 'false');
+            });
+        }
     }
 
     function switchDrawerTab(tabName) {
@@ -545,7 +589,7 @@
     }
 
     if (drawerNavCards) {
-        drawerNavCards.querySelectorAll('.drawer-nav-card').forEach(btn => {
+        drawerNavCards.querySelectorAll('.drawer-nav-card, .so-sheet-tab, .so-module').forEach(btn => {
             btn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 const tab = btn.getAttribute('data-tab');
@@ -2626,6 +2670,23 @@
         if (drawerQtyVal) drawerQtyVal.textContent = `${fmtNum(record.qty)} ${record.unit || 'EA'}`;
         if (drawerDateVal) drawerDateVal.textContent = fmtSapDate(record.date) || record.date || '—';
 
+        const setOd = (id, val) => {
+            const el = document.getElementById(id);
+            if (el) el.textContent = val || '—';
+        };
+        setOd('odSalesOrder', record.sales_order);
+        setOd('odLine', record.line_item);
+        setOd('odPlant', record.plant);
+        setOd('odStatus', record.status || 'Active');
+        setOd('odMaterial', record.material);
+        setOd('odMaterialGroup', record.material_group);
+        setOd('odQty', `${fmtNum(record.qty)} ${record.unit || 'EA'}`);
+        setOd('odNet', fmtMoney(record.net_amount));
+        setOd('odDate', fmtSapDate(record.date) || record.date);
+        setOd('odDivision', record.division);
+        setOd('odCustomer', record.customer_ref || record.customer);
+        setOd('odUnit', record.unit || record.order_unit || 'EA');
+
         // Quick Stats Bar (if present)
         if (drawerQuickNet) drawerQuickNet.textContent = fmtMoney(record.net_amount);
         if (drawerQuickQty) drawerQuickQty.textContent = `${fmtNum(record.qty)} ${record.unit || 'EA'}`;
@@ -2644,7 +2705,7 @@
             if (procCacheBySo[record.sales_order]) {
                 dncProcVal.textContent = `${procCacheBySo[record.sales_order].data.length} components`;
             } else {
-                dncProcVal.textContent = 'Live SAP';
+                dncProcVal.textContent = 'Syncing...';
             }
         }
 
@@ -3030,6 +3091,46 @@
         }
     }
 
+    function paintKpiSparks(values) {
+        const nums = (values || []).map(Number).filter((n) => !Number.isNaN(n));
+        const slice = nums.slice(-8);
+        const max = Math.max(...slice, 1);
+
+        function fillSpark(id, series) {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const bars = el.querySelectorAll('i');
+            bars.forEach((bar, i) => {
+                const v = series[i] != null ? series[i] : 12 + (i * 7) % 40;
+                const h = Math.max(16, Math.round((Number(v) / max) * 100));
+                bar.style.setProperty('--h', `${h}%`);
+            });
+        }
+
+        function setDelta(id, series) {
+            const el = document.getElementById(id);
+            if (!el || series.length < 2) return;
+            const prev = Number(series[series.length - 2]) || 0;
+            const last = Number(series[series.length - 1]) || 0;
+            if (prev === 0) {
+                el.hidden = true;
+                return;
+            }
+            const pct = ((last - prev) / Math.abs(prev)) * 100;
+            el.hidden = false;
+            el.classList.toggle('is-up', pct >= 0);
+            el.classList.toggle('is-down', pct < 0);
+            el.innerHTML = `<span class="material-icons-round">${pct >= 0 ? 'arrow_upward' : 'arrow_downward'}</span> ${Math.abs(pct).toFixed(0)}%`;
+        }
+
+        fillSpark('skNetSpark', slice);
+        fillSpark('skQtySpark', slice.map((v, i) => v * (0.72 + ((i % 3) * 0.08))));
+        fillSpark('skOrdersSpark', slice.map((v, i) => v * (0.55 + ((i % 4) * 0.1))));
+        setDelta('skNetDelta', nums);
+        setDelta('skQtyDelta', nums);
+        setDelta('skOrdersDelta', nums);
+    }
+
     function updateCharts(charts) {
         if (!charts || typeof Chart === 'undefined') return;
 
@@ -3044,6 +3145,7 @@
                 const maxVal = Math.max(...charts.trend.values.map(Number));
                 trendPeak.textContent = `Peak: ${fmtMoney(maxVal)}`;
             }
+            paintKpiSparks(charts.trend.values || []);
         }
 
         const mix = charts.plants && charts.plants.labels?.length > 1 ? charts.plants : (charts.mix || charts.division);
@@ -3129,7 +3231,7 @@
     function renderRows(records) {
         if (!tbody) return;
         if (!records.length) {
-            tbody.innerHTML = '<tr><td colspan="10" class="empty-state">No records match your filters.</td></tr>';
+            tbody.innerHTML = emptyRowHtml('No data found', 'No order lines match this period or filter.');
             return;
         }
 
@@ -3343,15 +3445,10 @@
         loading = true;
         showLoadingBar(true);
         showSalesLoader(true, { launch: !lastPayload });
-        if (tbody) tbody.innerHTML = '<tr><td colspan="10" class="empty-state">Connecting to SAP for live sales data…</td></tr>';
+        if (tbody) tbody.innerHTML = emptyRowHtml('Loading sales…', 'Fetching live SAP order lines.');
 
-        const queryTerm = (headerSoSearchInput?.value?.trim() || searchInput?.value?.trim() || '');
-
-        if (queryTerm) {
-            if (headerSoSearchInput && headerSoSearchInput.value !== queryTerm) headerSoSearchInput.value = queryTerm;
-            if (searchInput && searchInput.value !== queryTerm) searchInput.value = queryTerm;
-            if (headerSoSearchClear) headerSoSearchClear.hidden = false;
-        }
+        const queryTerm = getDashboardSearchTerm();
+        setDashboardSearchTerm(queryTerm);
 
         const params = new URLSearchParams({
             page: String(page),
@@ -3367,7 +3464,8 @@
 
         try {
             console.log('[Sales] Calling SAP API live:', `${cfg.apiUrl}?${params.toString()}`);
-            const res = await fetch(`${cfg.apiUrl}?${params.toString()}`, {
+            const fetcher = window.kapisFetch || fetch;
+            const res = await fetcher(`${cfg.apiUrl}?${params.toString()}`, {
                 headers: { Accept: 'application/json' },
                 cache: 'no-store',
                 credentials: 'same-origin',
@@ -3400,6 +3498,9 @@
             updateKpis(data.summary);
             updateCharts(data.charts || {});
             updateRange(data);
+            if (!currentRawRecords.length) {
+                tbody.innerHTML = emptyRowHtml('No data found', 'SAP returned no sales lines for this date range.');
+            }
 
             if (activeFilterBanner) {
                 if (queryTerm) {
@@ -3416,7 +3517,7 @@
                 }
             }
         } catch (err) {
-            if (tbody) tbody.innerHTML = `<tr><td colspan="10" class="empty-state" style="color:#ef4444">${escapeHtml(err.message)}</td></tr>`;
+            if (tbody) tbody.innerHTML = emptyRowHtml('No data found', err.message || 'Unable to load sales from SAP.');
             updateRange({ total: 0, page: 1, per_page: pageSize, pages: 1 });
             if (tableCount) tableCount.textContent = '0';
             if (loaderNote) loaderNote.textContent = err.message;
@@ -3465,7 +3566,7 @@
         return new URLSearchParams({
             page: String(currentPage),
             per_page: String(pageSize),
-            q: searchInput?.value?.trim() || '',
+            q: getDashboardSearchTerm(),
             from: currentFrom,
             to: currentTo,
             ...extra,
@@ -3529,20 +3630,34 @@
 
     const searchSubmitBtn = document.getElementById('btnSalesSearchSubmit');
     searchSubmitBtn?.addEventListener('click', () => {
+        setDashboardSearchTerm(searchInput?.value || '');
         fetchPage(1);
     });
 
     searchInput?.addEventListener('keydown', (e) => {
         if (e.key === 'Enter') {
             e.preventDefault();
+            setDashboardSearchTerm(searchInput.value);
             fetchPage(1);
         }
     });
 
-    searchInput?.addEventListener('search', () => {
-        if (!searchInput.value) {
-            fetchPage(1);
+    searchInput?.addEventListener('input', () => {
+        setDashboardSearchTerm(searchInput.value);
+        if (!searchInput.value.trim()) {
+            clearDashboardSearch(true);
         }
+    });
+
+    searchInput?.addEventListener('search', () => {
+        if (!searchInput.value.trim()) {
+            clearDashboardSearch(true);
+        }
+    });
+
+    salesSearchClear?.addEventListener('click', () => {
+        clearDashboardSearch(true);
+        searchInput?.focus();
     });
 
     const refreshBtn = document.getElementById('btnSalesRefresh');
@@ -3555,7 +3670,7 @@
     });
 
     pageSizeSelect?.addEventListener('change', () => {
-        pageSize = parseInt(pageSizeSelect.value, 10) || 25;
+        pageSize = Math.max(10, parseInt(pageSizeSelect.value, 10) || 10);
         fetchPage(1);
     });
 
@@ -3980,14 +4095,12 @@
     function handleHeaderSoSearch() {
         const val = headerSoSearchInput?.value?.trim();
         if (!val) {
+            clearDashboardSearch(true);
             headerSoSearchInput?.focus();
             return;
         }
         if (headerSoAutocomplete) headerSoAutocomplete.hidden = true;
-        if (searchInput) {
-            searchInput.value = val;
-        }
-        // Filter the entire dashboard by this sales order / search
+        setDashboardSearchTerm(val);
         fetchPage(1);
     }
 
@@ -4002,10 +4115,11 @@
     });
 
     headerSoSearchInput?.addEventListener('input', () => {
+        setDashboardSearchTerm(headerSoSearchInput.value);
         const q = headerSoSearchInput.value.trim().toLowerCase();
-        if (headerSoSearchClear) headerSoSearchClear.hidden = !q;
         if (!q) {
             if (headerSoAutocomplete) headerSoAutocomplete.hidden = true;
+            clearDashboardSearch(true);
             return;
         }
 
@@ -4062,8 +4176,7 @@
                     openProcurementModal(procSo);
                     return;
                 }
-                if (headerSoSearchInput) headerSoSearchInput.value = so;
-                if (searchInput) searchInput.value = so;
+                setDashboardSearchTerm(so);
                 headerSoAutocomplete.hidden = true;
                 fetchPage(1);
             });
@@ -4071,23 +4184,12 @@
     });
 
     headerSoSearchClear?.addEventListener('click', () => {
-        if (headerSoSearchInput) {
-            headerSoSearchInput.value = '';
-            headerSoSearchInput.focus();
-        }
-        if (searchInput) searchInput.value = '';
-        if (headerSoSearchClear) headerSoSearchClear.hidden = true;
-        if (headerSoAutocomplete) headerSoAutocomplete.hidden = true;
-        if (activeFilterBanner) activeFilterBanner.style.display = 'none';
-        fetchPage(1);
+        clearDashboardSearch(true);
+        headerSoSearchInput?.focus();
     });
 
     activeFilterClear?.addEventListener('click', () => {
-        if (headerSoSearchInput) headerSoSearchInput.value = '';
-        if (searchInput) searchInput.value = '';
-        if (headerSoSearchClear) headerSoSearchClear.hidden = true;
-        if (activeFilterBanner) activeFilterBanner.style.display = 'none';
-        fetchPage(1);
+        clearDashboardSearch(true);
     });
 
     // Clicking Card 1 (Total Sales Orders) focuses the table search

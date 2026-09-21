@@ -4,7 +4,6 @@
  * DATE : 07/09/2026
  * DESCRIPTION : SAP Material hub — ZI_MaterialAPI_HUB CDS
  */
-
 require_once base_path('app/core/SapODataClient.php');
 
 class SapMaterialService
@@ -30,15 +29,6 @@ class SapMaterialService
      */
     public function pageContext(): array
     {
-        $cached = $this->loadRecordsCached(true);
-        if ($cached !== []) {
-            return [
-                'data_source' => 'sap',
-                'sap_error'   => null,
-                'sap_rows'    => count($cached),
-            ];
-        }
-
         return [
             'data_source' => !empty($this->cfg['enabled']) ? 'sap' : 'static',
             'sap_error'   => null,
@@ -52,51 +42,23 @@ class SapMaterialService
     public function paginatedRecords(int $page, int $perPage, string $search = '', string $from = '', string $to = ''): array
     {
         @ini_set('memory_limit', '512M');
-
-        $queryTtl = (int) ($this->cfg['material_query_cache_ttl'] ?? $this->cfg['query_cache_ttl'] ?? 0);
-        $queryKey = $this->queryCacheKey($page, $perPage, $search, $from, $to);
-        if ($queryTtl > 0) {
-            $hit = $this->readQueryCache($queryKey, $queryTtl);
-            if ($hit !== null) {
-                $hit['cache'] = 'query';
-                return $hit;
-            }
-        }
+        @set_time_limit(45);
 
         $sapError = null;
         $records = [];
-        $cacheTag = 'live';
 
-        if ($this->isNarrowRange($from, $to)) {
-            $range = $this->loadOrFetchRange($from, $to);
-            $records = $range['records'];
-            $sapError = $range['error'];
-            $cacheTag = $range['cache'] ?? 'live';
-        } else {
-            // Prefer disk cache — never block the UI on a full master extract when we have data
-            $records = $this->loadRecordsCached(true);
-            if ($records === []) {
-                // Soft fallback: narrow to last 31 days instead of pulling entire hub
-                $toDay = $to !== '' ? $to : date('Y-m-d');
-                $fromDay = $from !== '' ? $from : date('Y-m-d', strtotime($toDay . ' -30 days'));
-                if ($this->isNarrowRange($fromDay, $toDay)) {
-                    $range = $this->loadOrFetchRange($fromDay, $toDay);
-                    $records = $range['records'];
-                    $sapError = $range['error'];
-                    $cacheTag = $range['cache'] ?? 'live';
-                } else {
-                    $sync = $this->syncFromSap($fromDay, $toDay);
-                    $sapError = $sync['error'];
-                    $records = $this->loadRecordsCached(true);
-                    $cacheTag = 'sync';
-                }
-            } else {
-                $cacheTag = 'disk';
-            }
-            if ($from !== '' && $to !== '' && $records !== []) {
-                $records = $this->filterRecords($records, '', $from, $to);
-            }
+        if ($from === '' && $to === '') {
+            $to = date('Y-m-d');
+            $from = date('Y-m-d', strtotime($to . ' -30 days'));
+        } elseif ($from === '' && $to !== '') {
+            $from = date('Y-m-d', strtotime($to . ' -30 days'));
+        } elseif ($from !== '' && $to === '') {
+            $to = date('Y-m-d', strtotime($from . ' +30 days'));
         }
+
+        $fetched = $this->fetchRecordsForRange($from, $to);
+        $records = $fetched['records'];
+        $sapError = $fetched['error'];
 
         $filtered = $this->filterRecords($records, $search, '', '');
         unset($records);
@@ -116,16 +78,12 @@ class SapMaterialService
             'per_page' => $perPage,
             'summary'  => $summary,
             'charts'   => $this->buildCharts($filtered),
-            'cache'    => $cacheTag,
+            'cache'    => 'live',
             'source'   => 'ZI_MaterialAPI_HUB',
         ];
 
         if ($total === 0 && !empty($sapError)) {
             $result['error'] = $sapError;
-        }
-
-        if ($queryTtl > 0 && empty($result['error'])) {
-            $this->writeQueryCache($queryKey, $result);
         }
 
         return $result;
@@ -299,21 +257,7 @@ class SapMaterialService
      */
     private function loadOrFetchRange(string $from, string $to): array
     {
-        $ttl = (int) ($this->cfg['material_range_cache_ttl'] ?? 3600);
-        if ($ttl > 0) {
-            $cached = $this->readRangeCache($from, $to, $ttl);
-            if ($cached !== null) {
-                return ['records' => $cached, 'error' => null, 'cache' => 'range'];
-            }
-        }
-
         $fetched = $this->fetchRecordsForRange($from, $to);
-        if ($fetched['records'] !== []) {
-            $this->writeRangeCache($from, $to, $fetched['records']);
-            // Also refresh soft disk snapshot for wider period filters
-            $this->writeRecordsCache($fetched['records']);
-            $this->storeRecordsMemory($fetched['records']);
-        }
 
         return [
             'records' => $fetched['records'],
@@ -402,11 +346,6 @@ class SapMaterialService
                 }
             }
         }, $extra);
-
-        if ($records !== []) {
-            $this->writeRecordsCache($records);
-            $this->storeRecordsMemory($records);
-        }
 
         return [
             'error'     => $records === [] ? ($result['error'] ?? null) : null,
@@ -562,140 +501,35 @@ class SapMaterialService
         return $end >= $start && $start->diff($end)->days <= 31;
     }
 
-    /** @return array<int, array> */
+    /** Disk/APCu cache disabled — live SAP only. */
     private function loadRecordsCached(bool $allowStaleOnly = false): array
     {
-        static $memo = null;
-        if (is_array($memo)) {
-            return $memo;
-        }
-
-        $apcuKey = $this->apcuKey();
-        if (function_exists('apcu_fetch')) {
-            $ok = false;
-            $hit = apcu_fetch($apcuKey, $ok);
-            if ($ok && is_array($hit)) {
-                $memo = $hit;
-                return $hit;
-            }
-        }
-
-        $file = $this->recordsCachePath();
-        if (!is_file($file)) {
-            return [];
-        }
-
-        if (!$allowStaleOnly) {
-            $ttl = (int) ($this->cfg['cache_ttl'] ?? 3600);
-            if ($ttl > 0 && filemtime($file) + $ttl < time()) {
-                // still serve stale for speed; caller may refresh if empty path
-            }
-        }
-
-        $data = json_decode((string) file_get_contents($file), true);
-        $records = is_array($data) ? $data : [];
-        if ($records !== []) {
-            $this->storeRecordsMemory($records);
-            $memo = $records;
-        }
-
-        return $records;
+        return [];
     }
 
-    /** @param array<int, array> $records */
     private function writeRecordsCache(array $records): void
     {
-        $dir = base_path('storage/cache');
-        if (!is_dir($dir)) {
-            @mkdir($dir, 0755, true);
-        }
-        @file_put_contents($this->recordsCachePath(), json_encode($records));
     }
 
-    /** @param array<int, array> $records */
     private function storeRecordsMemory(array $records): void
     {
-        if (function_exists('apcu_store') && $records !== []) {
-            @apcu_store($this->apcuKey(), $records, max(60, (int) ($this->cfg['cache_ttl'] ?? 3600)));
-        }
-    }
-
-    private function apcuKey(): string
-    {
-        return 'kapis_sap_material_v' . (int) ($this->cfg['material_cache_version'] ?? 1);
-    }
-
-    private function recordsCachePath(): string
-    {
-        $v = (int) ($this->cfg['material_cache_version'] ?? 1);
-        return base_path('storage/cache/sap_material_records_v' . $v . '.json');
-    }
-
-    private function queryCacheKey(int $page, int $perPage, string $search, string $from, string $to): string
-    {
-        return hash('sha256', implode('|', [
-            'material',
-            (string) ($this->cfg['material_cache_version'] ?? 1),
-            (string) $page,
-            (string) $perPage,
-            strtolower(trim($search)),
-            $from,
-            $to,
-        ]));
-    }
-
-    private function queryCachePath(string $key): string
-    {
-        return base_path('storage/cache/sap_material_query_' . $key . '.json');
     }
 
     private function readQueryCache(string $key, int $ttl): ?array
     {
-        $file = $this->queryCachePath($key);
-        if (!is_file($file) || filemtime($file) + $ttl < time()) {
-            return null;
-        }
-        $data = json_decode((string) file_get_contents($file), true);
-
-        return is_array($data) ? $data : null;
+        return null;
     }
 
     private function writeQueryCache(string $key, array $payload): void
     {
-        $dir = base_path('storage/cache');
-        if (!is_dir($dir)) {
-            @mkdir($dir, 0755, true);
-        }
-        @file_put_contents($this->queryCachePath($key), json_encode($payload));
     }
 
-    private function rangeCachePath(string $from, string $to): string
-    {
-        $v = (int) ($this->cfg['material_cache_version'] ?? 1);
-        $hash = hash('sha256', $from . '|' . $to);
-
-        return base_path('storage/cache/sap_material_range_v' . $v . '_' . $hash . '.json');
-    }
-
-    /** @return array<int, array>|null */
     private function readRangeCache(string $from, string $to, int $ttl): ?array
     {
-        $file = $this->rangeCachePath($from, $to);
-        if (!is_file($file) || filemtime($file) + $ttl < time()) {
-            return null;
-        }
-        $data = json_decode((string) file_get_contents($file), true);
-
-        return is_array($data) ? $data : null;
+        return null;
     }
 
-    /** @param array<int, array> $records */
     private function writeRangeCache(string $from, string $to, array $records): void
     {
-        $dir = base_path('storage/cache');
-        if (!is_dir($dir)) {
-            @mkdir($dir, 0755, true);
-        }
-        @file_put_contents($this->rangeCachePath($from, $to), json_encode($records));
     }
 }

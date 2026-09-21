@@ -65,17 +65,22 @@
     /*
      * Show loader method
      */
-    function showLoader(active, launch = !lastPayload) {
-        if (!hub) return;
+    function showLoader(active) {
         const loader = document.getElementById('materialLoader');
-        hub.classList.toggle('is-loading', active);
-        document.body.classList.toggle('sales-launch-loading', active && launch);
+        if (hub) hub.classList.toggle('is-loading', active);
+        document.documentElement.classList.toggle('sales-is-loading', active);
+        document.body.classList.toggle('sales-is-loading', active);
+        document.body.classList.toggle('sales-launch-loading', active);
+        const splash = document.getElementById('kapisSplash');
+        if (active && splash) {
+            splash.classList.add('is-done');
+            splash.setAttribute('hidden', '');
+        }
         if (loader) {
-            loader.classList.toggle('sales-loader--launch', active && launch);
-            if (active && launch && loader.parentElement !== document.body) {
-                document.body.appendChild(loader);
-            } else if (!active && loader.parentElement === document.body) {
-                hub.insertBefore(loader, hub.firstChild);
+            loader.classList.toggle('is-on', active);
+            loader.classList.toggle('sales-loader--launch', active);
+            if (active && loader.parentElement !== document.documentElement) {
+                document.documentElement.appendChild(loader);
             }
         }
         if (loaderTimer) {
@@ -397,7 +402,10 @@
     function renderRows(records) {
         if (!tbody) return;
         if (!records.length) {
-            tbody.innerHTML = '<tr><td colspan="10" class="empty-state mat-empty">No material master lines in this period</td></tr>';
+            const html = (typeof window.kapisEmptyHtml === 'function')
+                ? window.kapisEmptyHtml('No data found', 'No material master lines in this period.')
+                : '<div class="empty-state mat-empty">No material master lines in this period</div>';
+            tbody.innerHTML = `<tr><td colspan="10" class="empty-state mat-empty">${html}</td></tr>`;
             return;
         }
         tbody.innerHTML = records.map((r, idx) => `
@@ -453,7 +461,8 @@
         });
 
         try {
-            const res = await fetch(`${cfg.apiUrl}?${params.toString()}`, {
+            const fetcher = window.kapisFetch || fetch;
+            const res = await fetcher(`${cfg.apiUrl}?${params.toString()}`, {
                 headers: { Accept: 'application/json' },
                 cache: 'no-store',
                 credentials: 'same-origin',
@@ -477,7 +486,12 @@
             updateCharts(data.charts || {});
             updateRange(data);
         } catch (err) {
-            if (tbody) tbody.innerHTML = `<tr><td colspan="10" class="empty-state">${escapeHtml(err.message)}</td></tr>`;
+            if (tbody) {
+                const html = (typeof window.kapisEmptyHtml === 'function')
+                    ? window.kapisEmptyHtml('No data found', err.message || 'Unable to load materials from SAP.')
+                    : `<div class="empty-state">${escapeHtml(err.message)}</div>`;
+                tbody.innerHTML = `<tr><td colspan="10" class="empty-state">${html}</td></tr>`;
+            }
             updateRange({ total: 0, page: 1, per_page: pageSize, pages: 1 });
             if (loaderNote) loaderNote.textContent = err.message;
         } finally {
