@@ -188,6 +188,13 @@
         return (Math.round(num * 1000) / 1000).toString();
     }
 
+    function fmtRoundNum(n) {
+        if (n === null || n === undefined || n === '') return '0';
+        const num = parseFloat(String(n).replace(/,/g, ''));
+        if (isNaN(num)) return '0';
+        return Math.round(num).toLocaleString();
+    }
+
     /*
     * FUNCTION TO FORMAT SAP DATES (/Date(ms)/, YYYYMMDD, or ISO to DD Mon YYYY)
     */
@@ -286,19 +293,25 @@
     /*
     * FUNTION OF SHOW SALES LOADER
     */
-    function showSalesLoader(active, opts = {}) {
-        if (!hub) return;
+    function showSalesLoader(active) {
         const loader = document.getElementById('salesLoader');
-        const launch = opts.launch !== false && (opts.launch === true || !lastPayload);
-        hub.classList.toggle('is-loading', active);
-        document.body.classList.toggle('sales-launch-loading', active && launch);
+        if (hub) hub.classList.toggle('is-loading', active);
+        document.documentElement.classList.toggle('sales-is-loading', active);
+        document.body.classList.toggle('sales-is-loading', active);
+        document.body.classList.toggle('sales-launch-loading', active);
+        if (active && window.kapisSplash && typeof window.kapisSplash.hide === 'function') {
+            window.kapisSplash.hide();
+        }
+        const splash = document.getElementById('kapisSplash');
+        if (active && splash) {
+            splash.classList.add('is-done');
+            splash.setAttribute('hidden', '');
+        }
         if (loader) {
-            loader.classList.toggle('sales-loader--launch', active && launch);
-            // Keep launch overlay above the app chrome (header/nav).
-            if (active && launch && loader.parentElement !== document.body) {
-                document.body.appendChild(loader);
-            } else if (!active && loader.parentElement === document.body && hub) {
-                hub.insertBefore(loader, hub.firstChild);
+            loader.classList.toggle('is-on', active);
+            loader.setAttribute('aria-hidden', active ? 'false' : 'true');
+            if (loader.parentElement !== document.documentElement) {
+                document.documentElement.appendChild(loader);
             }
         }
         if (loaderTimer) {
@@ -475,6 +488,39 @@
         } else if (tabName === 'procurement') {
             loadDrawerProcurement(currentDrawerRecord);
         }
+
+        if (subDrawer) {
+            subDrawer.classList.add('open');
+            subDrawer.setAttribute('aria-hidden', 'false');
+        }
+    }
+
+    function openMaterialDetailsFor(materialCode, sourceTab) {
+        const mat = String(materialCode || '').trim();
+        if (!currentDrawerRecord || !mat || mat === '—') return;
+
+        activeDrawerTab = 'material';
+        if (subDrawerTitle) subDrawerTitle.textContent = 'Material Master · ' + mat;
+
+        const panels = {
+            planning: panelPlanning,
+            bom: panelBom,
+            material: panelMaterial,
+            procurement: panelProcurement
+        };
+        Object.keys(panels).forEach((k) => {
+            const p = panels[k];
+            if (p) {
+                p.hidden = k !== 'material';
+                p.classList.toggle('is-active', k === 'material');
+            }
+        });
+
+        loadDrawerMaterial(
+            { ...currentDrawerRecord, material: mat, _materialSourceTab: sourceTab || 'bom' },
+            false,
+            'material'
+        );
 
         if (subDrawer) {
             subDrawer.classList.add('open');
@@ -716,7 +762,7 @@
                     </div>
                     <div class="bom-stat-body">
                         <span class="bom-stat-label">Plan Quantity</span>
-                        <span class="bom-stat-val">${fmtRawNum(totalPlan)}</span>
+                        <span class="bom-stat-val">${fmtRoundNum(totalPlan)}</span>
                         <span class="bom-stat-sub">Planned Demand</span>
                     </div>
                 </div>
@@ -727,7 +773,7 @@
                     </div>
                     <div class="bom-stat-body">
                         <span class="bom-stat-label">Prd Quantity</span>
-                        <span class="bom-stat-val">${fmtRawNum(totalPrd)}</span>
+                        <span class="bom-stat-val">${fmtRoundNum(totalPrd)}</span>
                         <span class="bom-stat-sub">Confirmed Produced</span>
                     </div>
                 </div>
@@ -738,7 +784,7 @@
                     </div>
                     <div class="bom-stat-body">
                         <span class="bom-stat-label">BOM Quantity</span>
-                        <span class="bom-stat-val">${fmtRawNum(totalBomQty)}</span>
+                        <span class="bom-stat-val">${fmtRoundNum(totalBomQty)}</span>
                         <span class="bom-stat-sub">Total Component Ratio</span>
                     </div>
                 </div>
@@ -893,15 +939,29 @@
                     </tr>
                 `;
             } else {
-                tbodyEl.innerHTML = pageData.map(c => `
+                tbodyEl.innerHTML = pageData.map(c => {
+                    const matCode = String(c.Material || '').trim();
+                    const matCell = matCode
+                        ? `<button type="button" class="bom-material-link" data-material="${escapeHtml(matCode)}" title="View SAP material master for ${escapeHtml(matCode)}">${escapeHtml(matCode)}</button>`
+                        : '<span style="color:#94a3b8">—</span>';
+                    return `
                     <tr class="bom-data-row">
                         <td style="font-family:monospace;font-weight:600;color:#64748b">${escapeHtml(c.Item || '—')}</td>
-                        <td><b style="color:#0f172a">${escapeHtml(c.Material || '—')}</b></td>
-                        <td style="text-align:right;font-weight:600">${fmtRawNum(c.PlanQty)}</td>
-                        <td style="text-align:right;color:#0d9488;font-weight:600">${fmtRawNum(c.PrdQty)}</td>
-                        <td style="text-align:right;color:#6366f1;font-weight:600">${fmtRawNum(c.BOMQuantity)}</td>
+                        <td>${matCell}</td>
+                        <td style="text-align:right;font-weight:600">${fmtRoundNum(c.PlanQty)}</td>
+                        <td style="text-align:right;color:#0d9488;font-weight:600">${fmtRoundNum(c.PrdQty)}</td>
+                        <td style="text-align:right;color:#6366f1;font-weight:600">${fmtRoundNum(c.BOMQuantity)}</td>
                     </tr>
-                `).join('');
+                `;
+                }).join('');
+
+                tbodyEl.querySelectorAll('.bom-material-link').forEach((btn) => {
+                    btn.addEventListener('click', (e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        openMaterialDetailsFor(btn.getAttribute('data-material'), 'bom');
+                    });
+                });
             }
 
             // Update info counter
@@ -1195,12 +1255,30 @@
         const items = matData || [];
         const rawJsonString = JSON.stringify(rawPayload || { data: items }, null, 2);
         const sapMatItem = (!isDateRange && items.length) ? items[0] : null;
+        const sourceTab = record?._materialSourceTab || '';
+        const backBtnHtml = sourceTab === 'bom'
+            ? `<button type="button" class="btn-back-to-bom" style="padding:0.38rem 0.85rem;border-radius:0.5rem;border:1px solid #cbd5e1;background:#fff;cursor:pointer;font-size:0.78rem;font-weight:700;display:inline-flex;align-items:center;gap:0.3rem;color:#0f766e">
+                    <span class="material-icons-round" style="font-size:1rem">arrow_back</span> Back to BOM
+               </button>`
+            : '';
 
         panelMaterial.innerHTML = `
             <!-- Mode Switchers & Actions -->
           
             <!-- Top Controls: Mode Switchers & View Toggles -->
             <div id="matDataView" class="sap-view-pane">
+                ${!isDateRange ? `
+                    <div style="display:flex;align-items:center;justify-content:space-between;gap:0.75rem;margin-bottom:0.85rem;flex-wrap:wrap">
+                        ${backBtnHtml}
+                        <span style="font-size:0.78rem;color:#64748b">SAP ZI_MaterialAPI_HUB · Product eq '${escapeHtml(mat)}'</span>
+                    </div>
+                    ${!items.length ? `
+                        <div class="drawer-section-card" style="text-align:center;padding:2rem 1rem;margin-bottom:1rem">
+                            <div style="font-weight:700;color:#0f172a;margin-bottom:0.35rem">No master record for this material</div>
+                            <div style="color:#64748b;font-size:0.85rem">${escapeHtml(rawPayload?.message || 'SAP returned no ZI_MaterialAPI_HUB rows for this Product.')}</div>
+                        </div>
+                    ` : ''}
+                ` : ''}
                 ${isDateRange ? `
                     <div class="drawer-section-card" style="padding:0;overflow:hidden;border:1px solid #e2e8f0;box-shadow:0 1px 3px rgba(0,0,0,0.03)">
                         <!-- Table Header Point with Total Values Badge, Search & Sync -->
@@ -1440,6 +1518,11 @@
             syncBtn.addEventListener('click', () => loadDrawerMaterial(record, true, mode));
         }
 
+        const backBomBtn = panelMaterial.querySelector('.btn-back-to-bom');
+        if (backBomBtn) {
+            backBomBtn.addEventListener('click', () => openSubDrawer('bom'));
+        }
+
         const copyJsonBtn = panelMaterial.querySelector('.btn-copy-mat-json');
         if (copyJsonBtn) {
             copyJsonBtn.addEventListener('click', () => copyTextToClipboard(rawJsonString, copyJsonBtn));
@@ -1535,9 +1618,14 @@
                         </tr>
                     `;
                 } else {
-                    tbodyEl.innerHTML = pageData.map(m => `
+                    tbodyEl.innerHTML = pageData.map(m => {
+                        const prod = String(m.Product || '').trim();
+                        const prodCell = prod
+                            ? `<button type="button" class="bom-material-link" data-material="${escapeHtml(prod)}" title="View SAP material master for ${escapeHtml(prod)}">${escapeHtml(prod)}</button>`
+                            : '<span style="color:#94a3b8">—</span>';
+                        return `
                         <tr class="mat-data-row">
-                            <td><b style="color:#0f172a;font-family:monospace">${escapeHtml(m.Product || '—')}</b></td>
+                            <td>${prodCell}</td>
                             <td>${escapeHtml(m.ProductName || m.Product_Text || '—')}</td>
                             <td><span class="proc-badge-tag">${escapeHtml(m.ProductType || '—')}</span></td>
                             <td>${getPlantBadgeHtml(m.Plant)}</td>
@@ -1546,7 +1634,16 @@
                             <td style="text-align:right">${fmtRawNum(m.GrossWeight)}</td>
                             <td style="white-space:nowrap;font-size:0.75rem;color:#64748b">${escapeHtml(fmtSapDate(m.CreationDate) || m.CreationDate || '—')}</td>
                         </tr>
-                    `).join('');
+                    `;
+                    }).join('');
+
+                    tbodyEl.querySelectorAll('.bom-material-link').forEach((btn) => {
+                        btn.addEventListener('click', (e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            openMaterialDetailsFor(btn.getAttribute('data-material'), 'material');
+                        });
+                    });
                 }
 
                 // Update info counter
@@ -1891,123 +1988,28 @@
         const uniqueGroups = Object.keys(groupCounts);
 
         panelProcurement.innerHTML = `
-            <div style="background:#ffffff;border:1px solid #e2e8f0;border-radius:0.85rem;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.03)">
-                <!-- Top Info Bar -->
-                <div class="procurement-modal-header" style="background:#ffffff;border-bottom:1px solid #e2e8f0;padding:0.9rem 1.35rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.75rem">
-                    <div style="display:flex;align-items:center;gap:0.85rem;flex-wrap:wrap">
-                        <div class="proc-header-icon" style="background:linear-gradient(135deg,#4f46e5,#6366f1);color:#fff;width:40px;height:40px;border-radius:0.65rem;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 8px rgba(79,70,229,0.25)">
-                            <span class="material-icons-round" style="font-size:1.35rem;color:#fff">local_shipping</span>
-                        </div>
-                        <div style="display:flex;flex-direction:column;gap:0.22rem">
-                            <div style="display:flex;align-items:center;gap:0.55rem;flex-wrap:wrap">
-                                <span style="font-size:1.05rem;font-weight:800;color:#0f172a">Procurement &amp; Demand Overview</span>
-                                <span class="proc-pill proc-pill-so" style="background:#f1f5f9;color:#334155;border:1px solid #cbd5e1;border-radius:9999px;padding:0.18rem 0.65rem;font-size:0.75rem;font-weight:700">
-                                    Sales Doc #<strong style="color:#0f172a">${escapeHtml(so)}</strong>
-                                </span>
-                                <span class="proc-pill proc-pill-live" style="background:#ecfdf5;color:#059669;border:1px solid #a7f3d0;border-radius:9999px;padding:0.18rem 0.65rem;font-size:0.72rem;font-weight:700;display:inline-flex;align-items:center;gap:0.3rem">
-                                    <span class="pulse-dot"></span> Live SAP OData
-                                </span>
-                            </div>
-                            <div class="procurement-subtitle" style="font-size:0.8rem;color:#64748b;display:flex;align-items:center;gap:0.4rem;flex-wrap:wrap">
-                                <span class="mat-label" style="font-size:0.7rem;font-weight:700;color:#94a3b8;letter-spacing:0.04em">ORDER MATERIAL:</span>
-                                <strong style="color:#0f172a;font-weight:700">${escapeHtml(parentMat)}</strong>
-                                <span class="mat-sep" style="color:#cbd5e1">·</span>
-                                <span>${escapeHtml(parentDesc)}</span>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="procurement-header-actions" style="display:flex;align-items:center;gap:0.5rem">
-                        <button type="button" class="proc-btn-header btn-proc-sync" title="Sync live data from SAP" style="display:inline-flex;align-items:center;gap:0.35rem;padding:0.45rem 1rem;background:#ffffff;border:1px solid #cbd5e1;border-radius:0.55rem;font-size:0.8rem;font-weight:700;color:#334155;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,0.03)">
-                            <span class="material-icons-round" style="font-size:1.05rem;color:#4f46e5">sync</span>
-                            <span>Sync</span>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- 5 Executive Modern KPI Metric Cards -->
-                <div class="procurement-cards-grid">
-                    <div class="proc-stat-card tone-indigo">
-                        <div class="proc-stat-top">
-                            <span class="proc-stat-lbl">Components</span>
-                            <div class="proc-stat-icon-wrap">
-                                <span class="material-icons-round">category</span>
-                            </div>
-                        </div>
-                        <div class="proc-stat-num"><b>${comps.length}</b><span class="proc-stat-unit">items</span></div>
-                        <div class="proc-stat-sub">Bill of Materials</div>
-                    </div>
-
-                    <div class="proc-stat-card tone-cyan">
-                        <div class="proc-stat-top">
-                            <span class="proc-stat-lbl">Required Demand</span>
-                            <div class="proc-stat-icon-wrap">
-                                <span class="material-icons-round">assignment_turned_in</span>
-                            </div>
-                        </div>
-                        <div class="proc-stat-num"><b>${fmtNum(totalReq)}</b></div>
-                        <div class="proc-stat-sub">Production Demand</div>
-                    </div>
-
-                    <div class="proc-stat-card tone-amber">
-                        <div class="proc-stat-top">
-                            <span class="proc-stat-lbl">Total PR Qty</span>
-                            <div class="proc-stat-icon-wrap">
-                                <span class="material-icons-round">receipt_long</span>
-                            </div>
-                        </div>
-                        <div class="proc-stat-num"><b>${fmtNum(totalPR)}</b></div>
-                        <div class="proc-stat-sub">Purchase Requisitions</div>
-                    </div>
-
-                    <div class="proc-stat-card tone-emerald">
-                        <div class="proc-stat-top">
-                            <span class="proc-stat-lbl">Total PO Qty</span>
-                            <div class="proc-stat-icon-wrap">
-                                <span class="material-icons-round">local_shipping</span>
-                            </div>
-                        </div>
-                        <div class="proc-stat-num"><b>${fmtNum(totalPO)}</b></div>
-                        <div class="proc-stat-sub">Purchase Orders</div>
-                    </div>
-
-                    <div class="proc-stat-card tone-purple">
-                        <div class="proc-stat-top">
-                            <span class="proc-stat-lbl">Stock Available</span>
-                            <div class="proc-stat-icon-wrap">
-                                <span class="material-icons-round">warehouse</span>
-                            </div>
-                        </div>
-                        <div class="proc-stat-num"><b>${fmtNum(totalStock)}</b></div>
-                        <div class="proc-stat-sub">Free Inventory</div>
-                    </div>
-                </div>
-
-                <!-- Supply Chain Flow & Progress Pipeline Strip -->
+            <div class="proc-shell">
                 <div class="proc-pipeline-strip">
                     <div class="proc-pipeline-flow">
-                        <span class="proc-flow-node stage-req"><span class="material-icons-round" style="font-size:14px">assignment</span> Demand: ${fmtNum(totalReq)}</span>
-                        <span class="proc-flow-arrow material-icons-round">chevron_right</span>
-                        <span class="proc-flow-node stage-pr"><span class="material-icons-round" style="font-size:14px">receipt</span> PR: ${fmtNum(totalPR)}</span>
-                        <span class="proc-flow-arrow material-icons-round">chevron_right</span>
-                        <span class="proc-flow-node stage-po"><span class="material-icons-round" style="font-size:14px">local_shipping</span> PO: ${fmtNum(totalPO)}</span>
-                        <span class="proc-flow-arrow material-icons-round">chevron_right</span>
-                        <span class="proc-flow-node stage-stk"><span class="material-icons-round" style="font-size:14px">warehouse</span> Stock: ${fmtNum(totalStock)}</span>
-                    </div>
-                    <div class="proc-pipeline-metrics">
-                        ${comps.length > 0 ? `
-                            <span class="proc-progress-chip" title="PR Coverage vs Demand">
-                                <span style="font-size:0.72rem;color:#64748b">PR Coverage:</span>
-                                <strong style="color:${prCoveragePct >= 100 ? '#059669' : '#d97706'}">${prCoveragePct}%</strong>
-                            </span>
-                            <span class="proc-progress-chip" title="PO Fulfillment vs Demand">
-                                <span style="font-size:0.72rem;color:#64748b">PO Fulfilled:</span>
-                                <strong style="color:${poFulfillPct >= 100 ? '#059669' : '#4f46e5'}">${poFulfillPct}%</strong>
-                            </span>
-                        ` : `
-                            <span class="proc-progress-chip" style="color:#64748b">
-                                <span class="material-icons-round" style="font-size:14px;color:#94a3b8">info</span> No active procurement records in SAP
-                            </span>
-                        `}
+                        <button type="button" class="proc-flow-node stage-req" data-stage="req">
+                            <span class="material-icons-round" style="font-size:15px">inventory_2</span>
+                            Demand: ${fmtNum(totalReq)}
+                        </button>
+                        <span class="proc-flow-arrow">›</span>
+                        <button type="button" class="proc-flow-node stage-pr" data-stage="pr">
+                            <span class="material-icons-round" style="font-size:15px">assignment</span>
+                            PR: ${fmtNum(totalPR)}
+                        </button>
+                        <span class="proc-flow-arrow">›</span>
+                        <button type="button" class="proc-flow-node stage-po" data-stage="po">
+                            <span class="material-icons-round" style="font-size:15px">local_shipping</span>
+                            PO: ${fmtNum(totalPO)}
+                        </button>
+                        <span class="proc-flow-arrow">›</span>
+                        <button type="button" class="proc-flow-node stage-stk" data-stage="stock">
+                            <span class="material-icons-round" style="font-size:15px">warehouse</span>
+                            Stock: ${fmtNum(totalStock)}
+                        </button>
                     </div>
                 </div>
 
@@ -2054,112 +2056,66 @@
                         <div class="procurement-count-badge" id="procFilteredBadge">${comps.length} of ${comps.length} items</div>
                     </div>
 
-                    <!-- Main Content: Data Table & Nested PR Drawer -->
-                    <div class="procurement-content-body" style="position:relative;overflow:hidden">
-                        <div class="procurement-table-scroll" style="max-height:none;overflow-x:auto">
-                            <table class="drawer-components-table procurement-table table-bordered">
+                    <div class="procurement-content-body" id="procContentBody">
+                        <div class="procurement-table-scroll">
+                            <table class="procurement-table table-bordered">
                                 <thead>
-                                    <tr class="proc-header-row">
-                                        <th class="col-sortable" data-sort="ComponentMaterial" title="Click to sort by Material" style="min-width:180px">
-                                            <div class="th-sort-wrap">
-                                                <span>COMPONENT MATERIAL</span>
-                                                <span class="sort-icon material-icons-round">unfold_more</span>
-                                            </div>
+                                    <tr>
+                                        <th class="col-sortable" data-sort="ComponentMaterial">
+                                            <span class="th-sort-wrap">Component Material <span class="material-icons-round sort-icon">unfold_more</span></span>
                                         </th>
-                                        <th class="col-sortable" data-sort="ComponentDescription" title="Click to sort by Description" style="min-width:260px">
-                                            <div class="th-sort-wrap">
-                                                <span>DESCRIPTION</span>
-                                                <span class="sort-icon material-icons-round">unfold_more</span>
-                                            </div>
+                                        <th class="col-sortable" data-sort="ComponentDescription">
+                                            <span class="th-sort-wrap">Description <span class="material-icons-round sort-icon">unfold_more</span></span>
                                         </th>
-                                        <th class="col-sortable col-center" data-sort="MaterialGroup" title="Click to sort by Group" style="text-align:center;min-width:105px">
-                                            <div class="th-sort-wrap th-sort-center">
-                                                <span>GROUP</span>
-                                                <span class="sort-icon material-icons-round">unfold_more</span>
-                                            </div>
+                                        <th class="col-sortable" data-sort="MaterialGroup">
+                                            <span class="th-sort-wrap">Group <span class="material-icons-round sort-icon">unfold_more</span></span>
                                         </th>
-                                        <th class="col-sortable col-num" data-sort="RequirementQty" title="Click to sort by Req Qty" style="text-align:right;min-width:110px">
-                                            <div class="th-sort-wrap th-sort-right">
-                                                <span>REQ QTY</span>
-                                                <span class="sort-icon material-icons-round">unfold_more</span>
-                                            </div>
+                                        <th class="col-num col-sortable" data-sort="RequirementQty">
+                                            <span class="th-sort-wrap th-sort-right">Req Qty <span class="material-icons-round sort-icon">unfold_more</span></span>
                                         </th>
-                                        <th class="col-sortable col-num" data-sort="TotalPRQty" title="Click to sort by Total PR Qty" style="text-align:right;min-width:125px">
-                                            <div class="th-sort-wrap th-sort-right">
-                                                <span>TOTAL PR QTY</span>
-                                                <span class="sort-icon material-icons-round">unfold_more</span>
-                                            </div>
+                                        <th class="col-num col-sortable" data-sort="TotalPRQty">
+                                            <span class="th-sort-wrap th-sort-right">Total PR Qty <span class="material-icons-round sort-icon">unfold_more</span></span>
                                         </th>
-                                        <th class="col-sortable col-num" data-sort="TotalPOQty" title="Click to sort by Total PO Qty" style="text-align:right;min-width:125px">
-                                            <div class="th-sort-wrap th-sort-right">
-                                                <span>TOTAL PO QTY</span>
-                                                <span class="sort-icon material-icons-round">unfold_more</span>
-                                            </div>
+                                        <th class="col-num col-sortable" data-sort="TotalPOQty">
+                                            <span class="th-sort-wrap th-sort-right">Total PO Qty <span class="material-icons-round sort-icon">unfold_more</span></span>
                                         </th>
-                                        <th class="col-sortable col-num" data-sort="BalancePRQty" title="Click to sort by Balance PR" style="text-align:right;min-width:125px">
-                                            <div class="th-sort-wrap th-sort-right">
-                                                <span>BALANCE PR</span>
-                                                <span class="sort-icon material-icons-round">unfold_more</span>
-                                            </div>
-                                        </th>
-                                        <th class="col-sortable col-num" data-sort="StockQty" title="Click to sort by Stock Available" style="text-align:right;min-width:120px">
-                                            <div class="th-sort-wrap th-sort-right">
-                                                <span>STOCK</span>
-                                                <span class="sort-icon material-icons-round">unfold_more</span>
-                                            </div>
+                                        <th class="col-num col-sortable" data-sort="BalancePRQty">
+                                            <span class="th-sort-wrap th-sort-right">Balance PR <span class="material-icons-round sort-icon">unfold_more</span></span>
                                         </th>
                                     </tr>
-                                    <tr class="mat-col-filter-row proc-col-filter-row">
-                                        <th><input type="text" class="mat-col-filter-input proc-col-filter" data-col="ComponentMaterial" placeholder="Filter code..."/></th>
-                                        <th><input type="text" class="mat-col-filter-input proc-col-filter" data-col="ComponentDescription" placeholder="Filter desc/shade..."/></th>
-                                        <th><input type="text" class="mat-col-filter-input proc-col-filter" data-col="MaterialGroup" placeholder="Filter group..." style="text-align:center"/></th>
-                                        <th><input type="text" class="mat-col-filter-input proc-col-filter" data-col="RequirementQty" placeholder="Min req..." style="text-align:right"/></th>
-                                        <th><input type="text" class="mat-col-filter-input proc-col-filter" data-col="TotalPRQty" placeholder="Min PR..." style="text-align:right"/></th>
-                                        <th><input type="text" class="mat-col-filter-input proc-col-filter" data-col="TotalPOQty" placeholder="Min PO..." style="text-align:right"/></th>
-                                        <th><input type="text" class="mat-col-filter-input proc-col-filter" data-col="BalancePRQty" placeholder="Min bal..." style="text-align:right"/></th>
-                                        <th>
-                                            <div style="display:flex;align-items:center;gap:0.25rem">
-                                                <input type="text" class="mat-col-filter-input proc-col-filter" data-col="StockQty" placeholder="Min stock..." style="text-align:right"/>
-                                                <button type="button" class="btn-clear-mat-filters" id="btnClearDrawerProcFilters" title="Clear all column filters">
-                                                    <span class="material-icons-round" style="font-size:13px">clear</span>
-                                                </button>
-                                            </div>
-                                        </th>
+                                    <tr class="proc-col-filter-row">
+                                        <th><input type="text" class="proc-col-filter" data-col="ComponentMaterial" placeholder="Filter code…"></th>
+                                        <th><input type="text" class="proc-col-filter" data-col="ComponentDescription" placeholder="Filter desc/shade…"></th>
+                                        <th><input type="text" class="proc-col-filter" data-col="MaterialGroup" placeholder="Filter group…"></th>
+                                        <th><input type="number" class="proc-col-filter" data-col="RequirementQty" placeholder="Min req…"></th>
+                                        <th><input type="number" class="proc-col-filter" data-col="TotalPRQty" placeholder="Min PR…"></th>
+                                        <th><input type="number" class="proc-col-filter" data-col="TotalPOQty" placeholder="Min PO…"></th>
+                                        <th><input type="number" class="proc-col-filter" data-col="BalancePRQty" placeholder="Min bal…"></th>
                                     </tr>
                                 </thead>
-                                <tbody id="drawerProcTableBody">
-                                    <!-- injected by renderPage() -->
-                                </tbody>
+                                <tbody id="drawerProcTableBody"></tbody>
                             </table>
                         </div>
-
-                        <!-- Pagination -->
-                        <div class="bom-pagination-wrap" style="display:flex;align-items:center;justify-content:space-between;padding:0.85rem 1.25rem;border-top:1px solid #e2e8f0;background:#ffffff;font-size:0.82rem;color:#64748b">
+                        <div class="bom-pagination-wrap" style="display:flex;align-items:center;justify-content:space-between;padding:0.7rem 1.1rem;border-top:1px solid #e2e8f0;background:#ffffff;font-size:0.8rem;color:#64748b">
                             <div id="drawerProcPaginationInfo">Showing 1 to 20 of ${comps.length} components</div>
                             <div id="drawerProcPaginationBtns" style="display:flex;gap:0.35rem"></div>
                         </div>
-
-                        <!-- PR Drilldown Drawer Backdrop -->
-                        <div class="drawer-proc-pr-backdrop" id="drawerProcPrBackdrop"></div>
-
-                        <!-- Nested PR Set Drilldown Drawer inside Subdrawer Panel -->
-                        <div class="procurement-pr-drawer" id="drawerProcPrDrawer" aria-hidden="true">
-                            <div class="pr-drawer-header">
-                                <div>
-                                    <span class="pr-drawer-eyebrow"><span class="material-icons-round" style="font-size:14px;vertical-align:-1px">receipt_long</span> PR &amp; PO Details</span>
-                                    <h3 id="drawerPrDrawerTitle" style="margin:0.2rem 0 0;font-size:1.05rem;font-weight:700;color:#0f172a">PR Set</h3>
-                                    <p id="drawerPrDrawerSubtitle" class="pr-drawer-sub" style="margin:0.15rem 0 0;font-size:0.78rem;color:#64748b"></p>
-                                </div>
-                                <button type="button" class="icon-btn" id="drawerPrDrawerClose" aria-label="Close PR Drawer" style="border:none;background:none;cursor:pointer;color:#64748b;padding:0.25rem;border-radius:0.35rem">
-                                    <span class="material-icons-round" style="font-size:1.25rem">close</span>
-                                </button>
-                            </div>
-                            <div class="pr-drawer-body" id="drawerPrDrawerBody" style="padding:1.25rem;overflow-y:auto;flex:1">
-                                <div class="loading-state">Loading ProcurementPRSet from SAP...</div>
-                            </div>
-                        </div>
                     </div>
                 `}
+                <div class="proc-inspect-backdrop" id="procInspectBackdrop" hidden></div>
+                <aside class="proc-inspect" id="procInspect" aria-hidden="true">
+                    <div class="proc-inspect-head">
+                        <div>
+                            <div class="proc-inspect-eyebrow" id="procInspectEyebrow">PR &amp; PO DETAILS</div>
+                            <h3 id="procInspectTitle">—</h3>
+                            <p id="procInspectSub"></p>
+                        </div>
+                        <button type="button" class="proc-inspect-close" id="procInspectClose" aria-label="Close">
+                            <span class="material-icons-round">close</span>
+                        </button>
+                    </div>
+                    <div class="proc-inspect-body" id="procInspectBody"></div>
+                </aside>
             </div>
         `;
 
@@ -2181,6 +2137,15 @@
             StockQty: ''
         };
         let activeFilteredComps = comps.slice();
+
+        function procQty(r) {
+            const req = parseFloat(String(r.RequirementQty || r.RequiredQuantity || '0').replace(/\s+/g, '')) || 0;
+            const pr = parseFloat(String(r.TotalPRQty || r.TotalPRQuantity || '0').replace(/\s+/g, '')) || 0;
+            const po = parseFloat(String(r.TotalPOQty || r.TotalPOQuantity || '0').replace(/\s+/g, '')) || 0;
+            const bal = parseFloat(String(r.BalancePRQty || (pr - po) || '0').replace(/\s+/g, '')) || 0;
+            const stock = parseFloat(String(r.StockQty || r.StockQuantity || '0').replace(/\s+/g, '')) || 0;
+            return { req, pr, po, bal, stock };
+        }
 
         function applyFiltersAndSort() {
             let filtered = comps.filter(c => {
@@ -2246,12 +2211,12 @@
                 filtered.sort((a, b) => {
                     const numCols = ['RequirementQty', 'TotalPRQty', 'TotalPOQty', 'BalancePRQty', 'StockQty'];
                     if (numCols.includes(currentProcSortCol)) {
-                        let vA = parseFloat(String(a[currentProcSortCol] || (currentProcSortCol === 'RequirementQty' ? a.RequiredQuantity : (currentProcSortCol === 'TotalPRQty' ? a.TotalPRQuantity : (currentProcSortCol === 'TotalPOQty' ? a.TotalPOQuantity : a.StockQuantity))) || 0).replace(/\s+/g, '')) || 0;
-                        let vB = parseFloat(String(b[currentProcSortCol] || (currentProcSortCol === 'RequirementQty' ? b.RequiredQuantity : (currentProcSortCol === 'TotalPRQty' ? b.TotalPRQuantity : (currentProcSortCol === 'TotalPOQty' ? b.TotalPOQuantity : b.StockQuantity))) || 0).replace(/\s+/g, '')) || 0;
+                        const vA = parseFloat(String(a[currentProcSortCol] || (currentProcSortCol === 'RequirementQty' ? a.RequiredQuantity : (currentProcSortCol === 'TotalPRQty' ? a.TotalPRQuantity : (currentProcSortCol === 'TotalPOQty' ? a.TotalPOQuantity : a.StockQuantity))) || 0).replace(/\s+/g, '')) || 0;
+                        const vB = parseFloat(String(b[currentProcSortCol] || (currentProcSortCol === 'RequirementQty' ? b.RequiredQuantity : (currentProcSortCol === 'TotalPRQty' ? b.TotalPRQuantity : (currentProcSortCol === 'TotalPOQty' ? b.TotalPOQuantity : b.StockQuantity))) || 0).replace(/\s+/g, '')) || 0;
                         return currentProcSortDir === 'asc' ? vA - vB : vB - vA;
                     }
-                    const vA = String(a[currentProcSortCol] || '').toLowerCase();
-                    const vB = String(b[currentProcSortCol] || '').toLowerCase();
+                    const vA = String(a[currentProcSortCol] || a.ComponentMaterialDesc || '').toLowerCase();
+                    const vB = String(b[currentProcSortCol] || b.ComponentMaterialDesc || '').toLowerCase();
                     const cmp = vA.localeCompare(vB, undefined, { numeric: true });
                     return currentProcSortDir === 'asc' ? cmp : -cmp;
                 });
@@ -2267,7 +2232,7 @@
         }
 
         function updateSortHeaders() {
-            panelProcurement.querySelectorAll('.procurement-table thead th.col-sortable').forEach(th => {
+            panelProcurement.querySelectorAll('.proc-pro-table thead th.col-sortable, .procurement-table thead th.col-sortable').forEach(th => {
                 const col = th.dataset.sort;
                 const icon = th.querySelector('.sort-icon');
                 th.classList.remove('is-sorted-asc', 'is-sorted-desc');
@@ -2297,53 +2262,39 @@
 
             if (!pageData.length) {
                 tbodyEl.innerHTML = `
-                    <tr>
-                        <td colspan="8" class="empty-state" style="text-align:center;padding:3rem 1rem;color:#64748b">
-                            ${comps.length ? 'No components match your search or filter criteria.' : 'No procurement components found in SAP for this sales doc.'}
-                        </td>
+                    <tr class="proc-empty-row">
+                        <td colspan="7">${comps.length ? 'No components match your search or filter criteria.' : 'No procurement components found in SAP for this sales doc.'}</td>
                     </tr>
                 `;
             } else {
                 tbodyEl.innerHTML = pageData.map((r, i) => {
-                    const req = parseFloat(String(r.RequirementQty || r.RequiredQuantity || '0').replace(/\s+/g, '')) || 0;
-                    const pr = parseFloat(String(r.TotalPRQty || r.TotalPRQuantity || '0').replace(/\s+/g, '')) || 0;
-                    const po = parseFloat(String(r.TotalPOQty || r.TotalPOQuantity || '0').replace(/\s+/g, '')) || 0;
-                    const bal = parseFloat(String(r.BalancePRQty || (pr - po) || '0').replace(/\s+/g, '')) || 0;
-                    const stock = parseFloat(String(r.StockQty || r.StockQuantity || '0').replace(/\s+/g, '')) || 0;
-                    const balBadgeHtml = (bal === 0)
-                        ? '<span class="proc-bal-badge bal-zero">Balanced (0)</span>'
-                        : (bal < 0
-                            ? `<span class="proc-bal-badge bal-neg">${fmtNum(bal)} (Over)</span>`
-                            : `<span class="proc-bal-badge bal-pos">${fmtNum(bal)}</span>`);
-
+                    const q = procQty(r);
+                    const balColor = q.bal < 0 ? '#dc2626' : (q.bal > 0 ? '#d97706' : '#059669');
                     return `
-                        <tr class="proc-row" data-page-idx="${i}" tabindex="0" role="button" title="Click to view PR & PO details">
+                        <tr class="proc-row" data-page-idx="${i}">
                             <td>
-                                <span class="proc-comp-badge" style="font-family:monospace;font-weight:700">${escapeHtml(r.ComponentMaterial || '—')}</span>
+                                <code class="proc-mat-code">${escapeHtml(r.ComponentMaterial || '—')}</code>
                             </td>
                             <td>
-                                <div class="proc-desc-cell">
-                                    <span class="proc-desc-name" style="font-weight:600;color:#0f172a">${escapeHtml(r.ComponentDescription || r.ComponentMaterialDesc || '—')}</span>
-                                    ${r.ShadeText1 ? `<span class="proc-desc-shade" style="display:inline-flex;align-items:center;gap:0.25rem;color:#64748b;font-size:0.75rem;margin-top:2px"><span class="material-icons-round" style="font-size:12px;color:#d97706">palette</span> Shade: ${escapeHtml(r.ShadeText1)}</span>` : ''}
-                                </div>
+                                ${escapeHtml(r.ComponentDescription || r.ComponentMaterialDesc || '—')}
+                                ${r.ShadeText1 ? `<div class="proc-item-shade">${escapeHtml(r.ShadeText1)}</div>` : ''}
                             </td>
-                            <td style="text-align:center"><span class="proc-tag ${groupTagClass(r.MaterialGroup)}">${escapeHtml(r.MaterialGroup || '—')}</span></td>
-                            <td class="col-num" style="text-align:right">${fmtNum(req)}</td>
-                            <td class="col-num" style="text-align:right;font-weight:600;color:#0f172a">${fmtNum(pr)}</td>
-                            <td class="col-num" style="text-align:right;font-weight:600;color:#059669">${fmtNum(po)}</td>
-                            <td class="col-num" style="text-align:right">${balBadgeHtml}</td>
-                            <td class="col-num" style="text-align:right;font-weight:600;color:#0284c7">${stock > 0 ? fmtNum(stock) : '—'}</td>
+                            <td><span class="proc-tag ${groupTagClass(r.MaterialGroup)}">${escapeHtml(r.MaterialGroup || '—')}</span></td>
+                            <td class="col-num">${fmtNum(q.req)}</td>
+                            <td class="col-num" style="font-weight:600;color:#0f172a">${fmtNum(q.pr)}</td>
+                            <td class="col-num" style="font-weight:600;color:#059669">${fmtNum(q.po)}</td>
+                            <td class="col-num" style="font-weight:700;color:${balColor}">${fmtNum(q.bal)}</td>
                         </tr>
                     `;
                 }).join('');
 
-                // Row click for PR drawer
-                tbodyEl.querySelectorAll('.proc-row').forEach((row, idx) => {
+                tbodyEl.querySelectorAll('.proc-row').forEach((row) => {
+                    const idx = Number(row.getAttribute('data-page-idx'));
                     const item = pageData[idx];
                     row.addEventListener('click', () => {
-                        tbodyEl.querySelectorAll('.proc-row').forEach(r => r.classList.remove('active'));
+                        tbodyEl.querySelectorAll('.proc-row').forEach((r) => r.classList.remove('active'));
                         row.classList.add('active');
-                        openDrawerPRSet(item);
+                        openProcInspect(item);
                     });
                 });
             }
@@ -2394,33 +2345,70 @@
             }
         }
 
-        async function openDrawerPRSet(item) {
-            const prDrawer = panelProcurement.querySelector('#drawerProcPrDrawer');
-            const prBackdrop = panelProcurement.querySelector('#drawerProcPrBackdrop');
-            const prTitle = panelProcurement.querySelector('#drawerPrDrawerTitle');
-            const prSub = panelProcurement.querySelector('#drawerPrDrawerSubtitle');
-            const prBody = panelProcurement.querySelector('#drawerPrDrawerBody');
-            if (!prDrawer) return;
+        const inspectEl = panelProcurement.querySelector('#procInspect');
+        const inspectBackdrop = panelProcurement.querySelector('#procInspectBackdrop');
+        const inspectTitle = panelProcurement.querySelector('#procInspectTitle');
+        const inspectSub = panelProcurement.querySelector('#procInspectSub');
+        const inspectBody = panelProcurement.querySelector('#procInspectBody');
 
-            prDrawer.classList.add('open');
-            prDrawer.setAttribute('aria-hidden', 'false');
-            if (prBackdrop) prBackdrop.classList.add('open');
+        function closeDrawerProcPr() {
+            inspectEl?.classList.remove('is-open');
+            if (inspectEl) inspectEl.setAttribute('aria-hidden', 'true');
+            if (inspectBackdrop) inspectBackdrop.hidden = true;
+        }
 
-            if (prTitle) prTitle.textContent = item.ComponentMaterial || '—';
-            if (prSub) prSub.textContent = item.ComponentDescription || item.ComponentMaterialDesc || '';
+        panelProcurement.querySelector('#procInspectClose')?.addEventListener('click', closeDrawerProcPr);
+        inspectBackdrop?.addEventListener('click', closeDrawerProcPr);
+
+        function prLinesHtml(prList) {
+            return `
+                <div class="proc-nested-head">
+                    <span>${prList.length} Purchase Requisition Item(s)</span>
+                    <span class="proc-pill proc-pill-live"><span class="pulse-dot"></span> Live SAP</span>
+                </div>
+                ${prList.map((pr) => {
+                    const reqQty = parseFloat(String(pr.RequirementQty || '0').replace(/\s+/g, '')) || 0;
+                    const prQty = parseFloat(String(pr.PRQty || '0').replace(/\s+/g, '')) || 0;
+                    const poQty = parseFloat(String(pr.POQty || '0').replace(/\s+/g, '')) || 0;
+                    const balQty = parseFloat(String(pr.BalancePRQty || '0').replace(/\s+/g, '')) || 0;
+                    const balColor = balQty < 0 ? '#dc2626' : (balQty > 0 ? '#d97706' : '#10b981');
+                    const cleanItem = pr.PRItem ? String(parseInt(pr.PRItem, 10)) : '10';
+                    return `
+                        <div class="pr-line-card">
+                            <div class="pr-line-card-head">
+                                <span class="pr-num">
+                                    <span class="material-icons-round" style="font-size:16px;color:#4f46e5">receipt</span>
+                                    PR ${escapeHtml(pr.PRNumber || '—')} · Item ${escapeHtml(cleanItem)}
+                                </span>
+                            </div>
+                            <div class="pr-grid-details">
+                                <div><span>Requirement Qty</span><strong style="color:#0f172a">${fmtNum(reqQty)}</strong></div>
+                                <div><span>PR Quantity</span><strong style="color:#4f46e5">${fmtNum(prQty)}</strong></div>
+                                <div><span>PO Quantity</span><strong style="color:#059669">${fmtNum(poQty)}</strong></div>
+                                <div><span>Balance PR Qty</span><strong style="color:${balColor}">${fmtNum(balQty)}</strong></div>
+                            </div>
+                        </div>
+                    `;
+                }).join('')}
+            `;
+        }
+
+        async function openProcInspect(item) {
+            if (!item || !inspectEl) return;
+            if (inspectTitle) inspectTitle.textContent = item.ComponentMaterial || '—';
+            if (inspectSub) inspectSub.textContent = item.ComponentDescription || item.ComponentMaterialDesc || '';
+            inspectBackdrop.hidden = false;
+            inspectEl.classList.add('is-open');
+            inspectEl.setAttribute('aria-hidden', 'false');
+            inspectBody.innerHTML = `
+                <div style="padding:1.25rem 0.5rem;text-align:center;color:#64748b">
+                    <div class="sales-loader-ring" style="margin:0 auto 0.75rem;width:26px;height:26px;border-width:3px"></div>
+                    <div style="font-weight:600;color:#0f172a">Loading PR / PO lines from SAP…</div>
+                </div>
+            `;
 
             const uri = item.ProcurementPRSet?.__deferred?.uri
                 || `http://app-prod.evolvclothing.com:8000/sap/opu/odata/sap/ZBUSINESS_API_SRV/ProcurementDashboardSet(SalesDoc='${item.SalesDoc || so}',ComponentMaterial='${encodeURIComponent(item.ComponentMaterial)}')/ProcurementPRSet`;
-
-            if (prBody) {
-                prBody.innerHTML = `
-                    <div style="padding:2.5rem 1rem;text-align:center;color:#64748b">
-                        <div class="sales-loader-ring" style="margin:0 auto 1rem;width:28px;height:28px;border-width:3px"></div>
-                        <div style="font-weight:600;color:#0f172a">Calling SAP ProcurementPRSet…</div>
-                        <small style="color:#94a3b8;font-size:0.75rem;margin-top:0.25rem;display:block">Retrieving purchase requisition line items</small>
-                    </div>
-                `;
-            }
 
             const endpoint = cfg.procurementPrUrl || '/sales/procurement-pr';
             try {
@@ -2435,11 +2423,10 @@
                 const payload = await res.json();
 
                 if (payload.status === 'error') {
-                    prBody.innerHTML = `
-                        <div class="pr-line-card" style="text-align:center;color:#ef4444;padding:2rem">
-                            <span class="material-icons-round" style="font-size:36px;color:#ef4444;margin-bottom:0.5rem">error_outline</span>
+                    inspectBody.innerHTML = `
+                        <div class="pr-line-card" style="text-align:center;color:#ef4444;padding:1.5rem">
                             <h4 style="margin:0">SAP Request Failed</h4>
-                            <p style="margin:0.25rem 0 0.5rem;font-size:0.8rem">${escapeHtml(payload.error || 'Failed to retrieve PR details from SAP')}</p>
+                            <p style="margin:0.25rem 0 0;font-size:0.8rem">${escapeHtml(payload.error || 'Failed to retrieve PR details from SAP')}</p>
                         </div>
                     `;
                     return;
@@ -2447,66 +2434,26 @@
 
                 const prList = payload.data || [];
                 if (!prList.length) {
-                    prBody.innerHTML = `
-                        <div class="pr-line-card" style="text-align:center;color:#64748b;padding:2rem">
-                            <span class="material-icons-round" style="font-size:36px;color:#cbd5e1;margin-bottom:0.5rem">info</span>
-                            <h4 style="margin:0;color:#0f172a">No Purchase Requisitions Linked</h4>
-                            <p style="margin:0.25rem 0 1rem;font-size:0.8rem">No PR lines found in SAP for this component material.</p>
-                            <div style="text-align:left;background:#f8fafc;padding:0.75rem;border-radius:0.5rem;font-size:0.75rem;border:1px solid #e2e8f0">
-                                <strong style="color:#0f172a;display:block;margin-bottom:0.35rem">Component Summary:</strong>
-                                <div>Req Qty: <b>${escapeHtml(item.RequirementQty || item.RequiredQuantity || '0')}</b></div>
-                                <div>Total PR Qty: <b>${escapeHtml(item.TotalPRQty || item.TotalPRQuantity || '0')}</b></div>
-                                <div>Total PO Qty: <b>${escapeHtml(item.TotalPOQty || item.TotalPOQuantity || '0')}</b></div>
-                                <div>Balance PR: <b>${escapeHtml(item.BalancePRQty || '0')}</b></div>
-                                <div>Stock Qty: <b>${escapeHtml(item.StockQty || item.StockQuantity || '0')}</b></div>
-                            </div>
+                    inspectBody.innerHTML = `
+                        <div class="pr-line-card" style="text-align:center;color:#64748b;padding:1.5rem">
+                            <h4 style="margin:0;color:#0f172a">No purchase requisitions linked</h4>
+                            <p style="margin:0.35rem 0 0;font-size:0.8rem">No PR lines found in SAP for this component.</p>
                         </div>
                     `;
                     return;
                 }
-
-                prBody.innerHTML = `
-                    <div style="margin-bottom:1rem;display:flex;justify-content:space-between;align-items:center">
-                        <span style="font-size:0.82rem;font-weight:700;color:#334155">${prList.length} Purchase Requisition Item(s)</span>
-                        <span class="proc-pill proc-pill-live" style="background:#ecfdf5;color:#059669;border:1px solid #a7f3d0;border-radius:9999px;padding:0.18rem 0.55rem;font-size:0.72rem;font-weight:700;display:inline-flex;align-items:center;gap:0.3rem"><span class="pulse-dot"></span> Live SAP</span>
-                    </div>
-                    ${prList.map((pr) => {
-                        const reqQty = parseFloat(String(pr.RequirementQty || '0').replace(/\s+/g, '')) || 0;
-                        const prQty = parseFloat(String(pr.PRQty || '0').replace(/\s+/g, '')) || 0;
-                        const poQty = parseFloat(String(pr.POQty || '0').replace(/\s+/g, '')) || 0;
-                        const balQty = parseFloat(String(pr.BalancePRQty || '0').replace(/\s+/g, '')) || 0;
-                        const cleanItem = pr.PRItem ? String(parseInt(pr.PRItem, 10)) : '10';
-
-                        return `
-                            <div class="pr-line-card">
-                                <div class="pr-line-card-head">
-                                    <span class="pr-num">
-                                        <span class="material-icons-round" style="font-size:16px;color:#4f46e5">receipt</span> 
-                                        PR #${escapeHtml(pr.PRNumber || '—')} · Item ${escapeHtml(cleanItem)}
-                                    </span>
-                                    <span class="pr-status-badge" style="background:${balQty <= 0 ? '#ecfdf5' : '#fffbeb'};color:${balQty <= 0 ? '#059669' : '#d97706'}">
-                                        ${balQty <= 0 ? 'PO Fulfilled' : 'Open PR Balance'}
-                                    </span>
-                                </div>
-                                <div class="pr-grid-details">
-                                    <div><span>Requirement Qty</span><strong style="color:#0f172a">${fmtNum(reqQty)}</strong></div>
-                                    <div><span>PR Quantity</span><strong style="color:#4f46e5">${fmtNum(prQty)}</strong></div>
-                                    <div><span>PO Quantity</span><strong style="color:#059669">${fmtNum(poQty)}</strong></div>
-                                    <div><span>Balance PR</span><strong style="color:${balQty < 0 ? '#dc2626' : (balQty > 0 ? '#d97706' : '#10b981')}">${fmtNum(balQty)}</strong></div>
-                                </div>
-                            </div>
-                        `;
-                    }).join('')}
-                `;
+                inspectBody.innerHTML = prLinesHtml(prList);
             } catch (err) {
-                if (prBody) {
-                    prBody.innerHTML = `<div class="empty-state" style="color:#ef4444;padding:2rem">Error: ${escapeHtml(err.message)}</div>`;
-                }
+                inspectBody.innerHTML = `<div class="empty-state" style="color:#ef4444;padding:1.5rem">Error: ${escapeHtml(err.message)}</div>`;
             }
         }
 
+        async function openDrawerPRSet(item) {
+            await openProcInspect(item);
+        }
+
         // Event Listeners: Sort Headers
-        panelProcurement.querySelectorAll('.procurement-table thead th.col-sortable').forEach(th => {
+        panelProcurement.querySelectorAll('.proc-pro-table thead th.col-sortable, .procurement-table thead th.col-sortable').forEach(th => {
             th.addEventListener('click', (e) => {
                 if (e.target.closest('input, select, button')) return;
                 const col = th.dataset.sort;
@@ -2596,25 +2543,30 @@
             emptyPlanningBtn.addEventListener('click', () => openSubDrawer('planning'));
         }
 
-        function closeDrawerProcPr() {
-            panelProcurement.querySelector('#drawerProcPrDrawer')?.classList.remove('open');
-            panelProcurement.querySelector('#drawerProcPrDrawer')?.setAttribute('aria-hidden', 'true');
-            panelProcurement.querySelector('#drawerProcPrBackdrop')?.classList.remove('open');
-            panelProcurement.querySelectorAll('#drawerProcTableBody tr.proc-row').forEach(r => r.classList.remove('active'));
-        }
+        const stageSortMap = {
+            req: 'RequirementQty',
+            pr: 'TotalPRQty',
+            po: 'TotalPOQty',
+            stock: 'StockQty'
+        };
 
-        // PR Drawer Close Button & Backdrop Click
-        const prDrawerCloseBtn = panelProcurement.querySelector('#drawerPrDrawerClose');
-        if (prDrawerCloseBtn) {
-            prDrawerCloseBtn.addEventListener('click', closeDrawerProcPr);
-        }
-        const prBackdrop = panelProcurement.querySelector('#drawerProcPrBackdrop');
-        if (prBackdrop) {
-            prBackdrop.addEventListener('click', closeDrawerProcPr);
-        }
+        panelProcurement.querySelectorAll('.proc-flow-node[data-stage]').forEach((card) => {
+            card.addEventListener('click', () => {
+                const stage = card.getAttribute('data-stage') || 'req';
+                panelProcurement.querySelectorAll('.proc-flow-node[data-stage]').forEach((c) => {
+                    c.classList.toggle('is-active', c === card);
+                });
+                if (stageSortMap[stage]) {
+                    currentProcSortCol = stageSortMap[stage];
+                    currentProcSortDir = 'desc';
+                    updateSortHeaders();
+                    applyFiltersAndSort();
+                }
+            });
+        });
 
         // Initial render
-        renderPage(1);
+        applyFiltersAndSort();
     }
 
     async function loadDrawerProcurement(record, forceReload = false) {
@@ -3939,10 +3891,7 @@
                         <div class="pr-line-card-head">
                             <span class="pr-num">
                                 <span class="material-icons-round" style="font-size:16px;color:#4f46e5">receipt</span> 
-                                PR #${escapeHtml(pr.PRNumber || '—')} · Item ${escapeHtml(cleanItem)}
-                            </span>
-                            <span class="pr-status-badge" style="background:${balQty <= 0 ? '#ecfdf5' : '#fffbeb'};color:${balQty <= 0 ? '#059669' : '#d97706'}">
-                                ${balQty <= 0 ? 'PO Fulfilled' : 'Open PR Balance'}
+                                PR ${escapeHtml(pr.PRNumber || '—')} · Item ${escapeHtml(cleanItem)}
                             </span>
                         </div>
                         <div class="pr-grid-details">
@@ -4197,9 +4146,7 @@
     initCharts();
     initTableSortAndFilters();
 
-    // Launch spinner immediately (HTML already has is-loading)
-    document.body.classList.add('sales-launch-loading');
-    showSalesLoader(true, { launch: true });
+    showSalesLoader(true);
 
     const pad = (n) => String(n).padStart(2, '0');
     const fmt = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;

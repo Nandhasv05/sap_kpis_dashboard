@@ -1,8 +1,10 @@
 <?php
-// AUTHOR : NANDHAKUMAR S V
-// DATE : 04/09/2026
-// DESCRIPTION : Sales hub — colorful charts, loader, and detail dashboards
-
+/**
+ * AUTHOR : NANDHAKUMAR S V
+ * DATE : 21/09/2026
+ * DESCRIPTION : Sales hub — colorful charts, loader, and detail dashboards
+ * 
+ */
 $currencySymbol = $currencySymbol ?? '$';
 $year = (int) ($year ?? date('Y'));
 $sapError = $sapError ?? null;
@@ -35,12 +37,29 @@ $extraScripts = ob_get_clean();
 ?>
 
 <section class="sales-hub is-loading" id="salesHub">
-    <div class="sales-loader sales-loader--launch" id="salesLoader" role="status" aria-live="polite">
-        <div class="sales-loader-ring" aria-hidden="true"></div>
-        <strong>Loading SAP sales</strong>
-        <span id="salesLoaderNote">Connecting to ZI_SalesApi_HUB…</span>
-        <span class="sales-loader-hint">First load may take a moment while order lines sync from SAP.</span>
+    <div class="sales-loader is-on" id="salesLoader" role="status" aria-live="polite">
+        <div class="sales-loader-panel">
+            <div class="sales-spinner" aria-hidden="true">
+                <span class="sales-spinner-ring sales-spinner-ring--outer"></span>
+                <span class="sales-spinner-ring sales-spinner-ring--inner"></span>
+            </div>
+            <strong>Loading SAP sales</strong>
+            <span class="sales-loader-hint" id="salesLoaderNote">Fetching order lines from SAP…</span>
+        </div>
     </div>
+    <script>
+    (function () {
+        var el = document.getElementById('salesLoader');
+        if (el) document.documentElement.appendChild(el);
+        document.documentElement.classList.add('sales-is-loading');
+        document.body && document.body.classList.add('sales-is-loading');
+        var splash = document.getElementById('kapisSplash');
+        if (splash) {
+            splash.classList.add('is-done');
+            splash.setAttribute('hidden', '');
+        }
+    })();
+    </script>
 
     <?php if (!empty($sapError)): ?>
     <div class="sap-banner warn" style="display:flex">
