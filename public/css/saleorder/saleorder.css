@@ -1617,7 +1617,7 @@
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 0.75rem;
-    margin-bottom: 0.15rem;
+    margin: 0 1.25rem 0.85rem;
 }
 
 .so-dash-chart-wrap {
@@ -1632,13 +1632,22 @@
 .so-dash-chart-card {
     background: #fff;
     border: 1px solid #e2e8f0;
-    border-radius: 16px;
-    padding: 0.85rem 1rem 0.5rem;
-    min-height: 220px;
+    border-radius: 18px;
+    padding: 0.95rem 1.05rem 0.65rem;
+    min-height: 240px;
+    box-shadow: 0 8px 20px rgba(15, 23, 42, 0.05);
 }
 
-.so-chart-sky { border-top: 4px solid #2563eb; }
-.so-chart-violet { border-top: 4px solid #7c3aed; }
+.so-chart-sky {
+    border: 1px solid #bfdbfe;
+    background: linear-gradient(180deg, #eff6ff 0%, #ffffff 42%);
+    border-top: 4px solid #2563eb;
+}
+.so-chart-violet {
+    border: 1px solid #ddd6fe;
+    background: linear-gradient(180deg, #f5f3ff 0%, #ffffff 42%);
+    border-top: 4px solid #7c3aed;
+}
 
 .so-dash-chart-head {
     display: flex;

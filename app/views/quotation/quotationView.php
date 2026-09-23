@@ -124,6 +124,59 @@ $extraScripts = ob_get_clean();
             </div>
         </div>
     </div>
+
+    <div class="sales-charts-main">
+        <div class="card chart-panel sales-panel-sky">
+            <div class="chart-panel-head">
+                <span class="chart-panel-icon"><span class="material-icons-round">show_chart</span></span>
+                <div>
+                    <h2>Quotation value trend</h2>
+                    <p>Net value by quotation date</p>
+                </div>
+                <span class="chart-header-badge trend-badge" id="trendPeakStat">Peak: —</span>
+            </div>
+            <div class="chart-wrap tall"><canvas id="salesTrendChart"></canvas></div>
+        </div>
+        <div class="card chart-panel sales-panel-violet">
+            <div class="chart-panel-head">
+                <span class="chart-panel-icon"><span class="material-icons-round">donut_large</span></span>
+                <div>
+                    <h2 id="salesMixTitle">Plant mix</h2>
+                    <p id="salesMixSubtitle">Share of quotation net value</p>
+                </div>
+            </div>
+            <div class="chart-wrap tall chart-wrap-donut">
+                <canvas id="salesDivisionChart"></canvas>
+                <div class="doughnut-center-badge">
+                    <span class="doughnut-center-val" id="plantMixCenterVal">—</span>
+                    <span class="doughnut-center-lbl" id="plantMixCenterLbl">Active mix</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    <div class="sales-charts-row">
+        <div class="card chart-panel sales-panel-amber">
+            <div class="chart-panel-head">
+                <span class="chart-panel-icon"><span class="material-icons-round">inventory_2</span></span>
+                <div>
+                    <h2>Top materials</h2>
+                    <p>Highest quotation net value</p>
+                </div>
+            </div>
+            <div class="chart-wrap"><canvas id="salesStylesChart"></canvas></div>
+        </div>
+        <div class="card chart-panel sales-panel-mint">
+            <div class="chart-panel-head">
+                <span class="chart-panel-icon"><span class="material-icons-round">bar_chart</span></span>
+                <div>
+                    <h2 id="salesBarTitle">By plant / channel</h2>
+                    <p id="salesBarSubtitle">Net value by plant</p>
+                </div>
+            </div>
+            <div class="chart-wrap"><canvas id="salesChannelChart"></canvas></div>
+        </div>
+    </div>
+
     <div class="sales-table-shell card proj-panel" id="salesTableShell">
         <div class="sales-table-head">
             <div class="sales-table-head-left">

@@ -1181,23 +1181,28 @@
     }
 
     function renderSoDashboardCharts(lines) {
-        const qtyEl = document.getElementById('soQtyChart');
-        const mixEl = document.getElementById('soMixChart');
+        const netEl = document.getElementById('soQtyChart');
+        const qtyEl = document.getElementById('soMixChart');
         const chartLines = (lines || []).filter((r) => !r.is_header);
-        const qtyLabels = chartLines.map((r) => `${r.line_item} ${r.material || ''}`.trim().slice(0, 22));
-        const orderQty = chartLines.map((r) => Number(r.qty) || 0);
-        const confdQty = chartLines.map((r) => {
-            const confd = Number(r.confd_deliv_qty);
-            return Number.isFinite(confd) && confd > 0 ? confd : (Number(r.qty) || 0);
+        const mapped = chartLines.map((r) => {
+            const qty = Number(r.qty) || 0;
+            const confdRaw = Number(r.confd_deliv_qty);
+            const confd = Number.isFinite(confdRaw) && confdRaw > 0 ? confdRaw : qty;
+            const material = String(r.material || '').trim();
+            const shortMat = material.replace(/^.*-/, '').slice(0, 10);
+            return {
+                line: String(r.line_item || '—'),
+                label: `L${String(r.line_item || '—')} ${shortMat}`.trim(),
+                material: material || '—',
+                category: String(r.item_category || '—'),
+                qty,
+                confd,
+                net: Number(r.net_amount) || 0,
+            };
         });
-        const mixMap = {};
-        chartLines.forEach((r) => {
-            const key = String(r.item_category || 'Other').trim() || 'Other';
-            mixMap[key] = (mixMap[key] || 0) + (Number(r.net_amount) || 0);
-        });
-        const mixLabels = Object.keys(mixMap);
-        const mixValues = Object.values(mixMap);
-        const mixColors = ['#2563eb', '#0d9488', '#d97706', '#7c3aed', '#e11d48', '#64748b'];
+        const topNet = [...mapped].sort((a, b) => b.net - a.net).slice(0, 8);
+        const topQty = [...mapped].sort((a, b) => b.qty - a.qty).slice(0, 8);
+        const netColors = ['#2563eb', '#7c3aed', '#0d9488', '#d97706', '#e11d48', '#0ea5e9', '#84cc16', '#f43f5e'];
 
         if (soQtyChart) {
             soQtyChart.destroy();
@@ -1207,68 +1212,98 @@
             soMixChart.destroy();
             soMixChart = null;
         }
-        if (qtyEl && typeof Chart !== 'undefined') {
-            soQtyChart = new Chart(qtyEl, {
+        if (netEl && typeof Chart !== 'undefined') {
+            soQtyChart = new Chart(netEl, {
                 type: 'bar',
                 data: {
-                    labels: qtyLabels.length ? qtyLabels : ['No items'],
+                    labels: topNet.length ? topNet.map((r) => r.label) : ['No items'],
                     datasets: [{
-                        label: 'Order qty',
-                        data: orderQty.length ? orderQty : [0],
-                        backgroundColor: orderQty.map((_, i) => i % 2 ? 'rgba(20, 184, 166, 0.85)' : 'rgba(37, 99, 235, 0.85)'),
-                        borderRadius: 10,
+                        label: 'Net value',
+                        data: topNet.length ? topNet.map((r) => r.net) : [0],
+                        backgroundColor: topNet.map((_, i) => netColors[i % netColors.length]),
+                        borderRadius: 8,
                         borderSkipped: false,
-                        maxBarThickness: 18,
+                        maxBarThickness: 22,
                     }],
                 },
                 options: {
                     indexAxis: 'y',
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                title(items) {
+                                    const row = topNet[items?.[0]?.dataIndex];
+                                    return row ? `Line ${row.line} · ${row.material}` : '';
+                                },
+                                label(ctx) {
+                                    const row = topNet[ctx.dataIndex];
+                                    return row
+                                        ? ` ${fmtMoney(row.net)} · ${row.category} · Qty ${fmtNum(row.qty)}`
+                                        : '';
+                                },
+                            },
+                        },
+                    },
                     scales: {
-                        x: { beginAtZero: true, ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: 'rgba(15,23,42,0.06)' } },
-                        y: { ticks: { color: '#334155', font: { size: 10 } }, grid: { display: false } },
+                        x: {
+                            beginAtZero: true,
+                            ticks: { color: '#94a3b8', font: { size: 10 }, callback: (v) => symbol + Number(v).toLocaleString() },
+                            grid: { color: 'rgba(15,23,42,0.06)' },
+                        },
+                        y: { ticks: { color: '#334155', font: { size: 11, weight: 700 } }, grid: { display: false } },
                     },
                 },
             });
         }
-        if (mixEl && typeof Chart !== 'undefined') {
-            const netByItem = chartLines.map((r) => Number(r.net_amount) || 0);
-            soMixChart = new Chart(mixEl, {
-                type: 'line',
+        if (qtyEl && typeof Chart !== 'undefined') {
+            soMixChart = new Chart(qtyEl, {
+                type: 'bar',
                 data: {
-                    labels: qtyLabels.length ? qtyLabels : ['No items'],
-                    datasets: [{
-                        label: 'Net value',
-                        data: netByItem.length ? netByItem : [0],
-                        borderColor: '#7c3aed',
-                        backgroundColor: (ctx) => {
-                            const chart = ctx.chart;
-                            const { ctx: c, chartArea } = chart;
-                            if (!chartArea) return 'rgba(124, 58, 237, 0.18)';
-                            const g = c.createLinearGradient(0, chartArea.top, 0, chartArea.bottom);
-                            g.addColorStop(0, 'rgba(124, 58, 237, 0.35)');
-                            g.addColorStop(1, 'rgba(124, 58, 237, 0.02)');
-                            return g;
+                    labels: topQty.length ? topQty.map((r) => r.label) : ['No items'],
+                    datasets: [
+                        {
+                            label: 'Order qty',
+                            data: topQty.length ? topQty.map((r) => r.qty) : [0],
+                            backgroundColor: 'rgba(37, 99, 235, 0.9)',
+                            borderRadius: 7,
+                            borderSkipped: false,
+                            maxBarThickness: 14,
                         },
-                        fill: true,
-                        tension: 0.4,
-                        pointBackgroundColor: '#fff',
-                        pointBorderColor: '#7c3aed',
-                        pointBorderWidth: 2,
-                        pointRadius: 5,
-                        pointHoverRadius: 7,
-                        borderWidth: 3,
-                    }],
+                        {
+                            label: 'Confirmed',
+                            data: topQty.length ? topQty.map((r) => r.confd) : [0],
+                            backgroundColor: 'rgba(13, 148, 136, 0.9)',
+                            borderRadius: 7,
+                            borderSkipped: false,
+                            maxBarThickness: 14,
+                        },
+                    ],
                 },
                 options: {
+                    indexAxis: 'y',
                     responsive: true,
                     maintainAspectRatio: false,
-                    plugins: { legend: { display: false } },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'bottom',
+                            labels: { color: '#475569', boxWidth: 10, padding: 10, font: { size: 11, weight: 600 } },
+                        },
+                        tooltip: {
+                            callbacks: {
+                                title(items) {
+                                    const row = topQty[items?.[0]?.dataIndex];
+                                    return row ? `Line ${row.line} · ${row.material}` : '';
+                                },
+                            },
+                        },
+                    },
                     scales: {
-                        x: { ticks: { font: { size: 10 }, color: '#64748b', maxRotation: 35 }, grid: { display: false } },
-                        y: { beginAtZero: true, ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: 'rgba(15,23,42,0.06)' } },
+                        x: { beginAtZero: true, ticks: { color: '#94a3b8', font: { size: 10 } }, grid: { color: 'rgba(15,23,42,0.06)' } },
+                        y: { ticks: { color: '#334155', font: { size: 11, weight: 700 } }, grid: { display: false } },
                     },
                 },
             });
@@ -1277,9 +1312,9 @@
         const itemsEl = document.getElementById('soDashItems');
         const qtyKpi = document.getElementById('soDashQty');
         const netKpi = document.getElementById('soDashNet');
-        const qtySum = chartLines.reduce((s, r) => s + (Number(r.qty) || 0), 0);
-        const netSum = chartLines.reduce((s, r) => s + (Number(r.net_amount) || 0), 0);
-        if (itemsEl) itemsEl.textContent = String(chartLines.length);
+        const qtySum = mapped.reduce((s, r) => s + r.qty, 0);
+        const netSum = mapped.reduce((s, r) => s + r.net, 0);
+        if (itemsEl) itemsEl.textContent = String(mapped.length);
         if (qtyKpi) qtyKpi.textContent = fmtNum(qtySum);
         if (netKpi) netKpi.textContent = fmtMoney(netSum);
     }
@@ -4186,13 +4221,13 @@
         if (statusEl) {
             statusChart = new Chart(statusEl, {
                 type: 'doughnut',
-                data: { labels: [], datasets: [{ data: [], backgroundColor: ['#38bdf8', '#34d399', '#fbbf24', '#f43f5e', '#a855f7'], borderWidth: 2, borderColor: '#0f172a', hoverOffset: 10 }] },
+                data: { labels: [], datasets: [{ data: [], backgroundColor: ['#38bdf8', '#34d399', '#fbbf24', '#f43f5e', '#a855f7'], borderWidth: 3, borderColor: '#ffffff', hoverOffset: 10 }] },
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
                     cutout: '58%',
                     onClick: function (evt, els) { clickFilter(this)(evt, els); },
-                    plugins: { legend: { position: 'bottom', labels: { color: '#cbd5e1', boxWidth: 10, padding: 10 } } },
+                    plugins: { legend: { position: 'bottom', labels: { color: '#334155', boxWidth: 10, padding: 10, font: { size: 11, weight: 600 } } } },
                 },
             });
         }
