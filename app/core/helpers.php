@@ -161,3 +161,50 @@ function evolv_boot_app_base(): void
         $GLOBALS['app_base'] = kapis_app_base();
     }
 }
+
+function kapis_autoload(string $class): void
+{
+    static $loaded = [];
+    if (isset($loaded[$class])) {
+        return;
+    }
+
+    $relatives = [
+        "app/core/{$class}.php",
+        "app/controller/quotation/{$class}.php",
+        "app/controller/saleorder/{$class}.php",
+        "app/controller/bom/{$class}.php",
+        "app/controller/material/{$class}.php",
+        "app/controller/procurement/{$class}.php",
+        "app/controller/customer/{$class}.php",
+        "app/controller/dashboard/{$class}.php",
+        "app/controller/report/{$class}.php",
+        "app/controller/meeting/{$class}.php",
+        "app/controller/error/{$class}.php",
+        "app/models/quotation/{$class}.php",
+        "app/models/saleorder/{$class}.php",
+        "app/models/bom/{$class}.php",
+        "app/models/material/{$class}.php",
+        "app/models/procurement/{$class}.php",
+        "app/models/customer/{$class}.php",
+        "app/models/dashboard/{$class}.php",
+        "app/models/report/{$class}.php",
+        "app/services/quotation/{$class}.php",
+        "app/services/saleorder/{$class}.php",
+        "app/services/bom/{$class}.php",
+        "app/services/material/{$class}.php",
+        "app/services/procurement/{$class}.php",
+        "app/services/customer/{$class}.php",
+    ];
+
+    foreach ($relatives as $relative) {
+        $file = base_path($relative);
+        if (is_file($file)) {
+            $loaded[$class] = true;
+            require_once $file;
+            return;
+        }
+    }
+}
+
+spl_autoload_register('kapis_autoload');

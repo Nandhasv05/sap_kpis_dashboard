@@ -34,6 +34,9 @@ $logoUrl = asset('assets/logo.png');
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/icon?family=Material+Icons+Round" rel="stylesheet">
     <link rel="stylesheet" href="<?= e(asset('css/app.css')) ?>">
+    <link rel="stylesheet" href="<?= e(asset('css/layout/period.css')) ?>">
+    <link rel="stylesheet" href="<?= e(asset('css/layout/kpi.css')) ?>">
+    <link rel="stylesheet" href="<?= e(asset('css/dashboard/dashboard.css')) ?>">
     <style>
         :root {
             --primary: <?= e($primaryColor) ?>;
@@ -58,7 +61,7 @@ $logoUrl = asset('assets/logo.png');
         <div class="kapis-splash-spin" aria-hidden="true">
             <img src="<?= e($logoUrl) ?>" alt="">
         </div>
-        <p class="kapis-splash-label">Loading</p>
+        <p class="kapis-splash-label" id="kapisSplashLabel">Loading</p>
     </div>
     <div class="loading-bar" id="loadingBar"></div>
 
@@ -180,7 +183,18 @@ $logoUrl = asset('assets/logo.png');
         <?= $content ?>
     </main>
 
+    <footer class="app-footer" id="appFooter">
+        <p class="app-footer-copy">
+            &copy; <?= date('Y') ?> <?= e($brandName) ?>
+            <span class="app-footer-dot">·</span>
+            Live SAP
+        </p>
+        <span>Evolv Clothing</span>
+    </footer>
+
     <script src="<?= e(asset('js/app.js')) ?>"></script>
+    <script src="<?= e(asset('js/layout/period.js')) ?>"></script>
+    <script src="<?= e(asset('js/layout/kpi-modal.js')) ?>"></script>
     <?php if (!empty($extraScripts)) echo $extraScripts; ?>
 </body>
 </html>

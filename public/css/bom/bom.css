@@ -1,0 +1,241 @@
+/*
+ * AUTHOR : NANDHAKUMAR S V
+ * DATE : 23/09/2026
+ * DESCRIPTION : BOM panel, stats, and component table
+ */
+/* ==========================================================================
+   Colorful BOM Stat Cards & Pagination
+   ========================================================================== */
+.bom-stat-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+}
+
+@media (max-width: 1024px) {
+    .bom-stat-grid {
+        grid-template-columns: repeat(2, 1fr);
+    }
+}
+
+@media (max-width: 640px) {
+    .bom-stat-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+.bom-stat-card {
+    position: relative;
+    border-radius: 0.85rem;
+    padding: 1.15rem 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.02);
+    border: 1px solid rgba(226, 232, 240, 0.8);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.bom-stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+}
+
+.bom-stat-card.tone-teal {
+    background: linear-gradient(135deg, #f0fdfa 0%, #e6fffa 100%);
+    border-left: 4.5px solid #0d9488;
+}
+
+.bom-stat-card.tone-blue {
+    background: linear-gradient(135deg, #eff6ff 0%, #e0e7ff 100%);
+    border-left: 4.5px solid #2563eb;
+}
+
+.bom-stat-card.tone-emerald {
+    background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%);
+    border-left: 4.5px solid #10b981;
+}
+
+.bom-stat-card.tone-purple {
+    background: linear-gradient(135deg, #faf5ff 0%, #ede9fe 100%);
+    border-left: 4.5px solid #8b5cf6;
+}
+
+.bom-stat-icon-wrap {
+    width: 44px;
+    height: 44px;
+    border-radius: 0.7rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    color: #ffffff;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.12);
+}
+
+.bom-stat-card.tone-teal .bom-stat-icon-wrap {
+    background: linear-gradient(135deg, #0d9488, #14b8a6);
+}
+
+.bom-stat-card.tone-blue .bom-stat-icon-wrap {
+    background: linear-gradient(135deg, #2563eb, #3b82f6);
+}
+
+.bom-stat-card.tone-emerald .bom-stat-icon-wrap {
+    background: linear-gradient(135deg, #059669, #10b981);
+}
+
+.bom-stat-card.tone-purple .bom-stat-icon-wrap {
+    background: linear-gradient(135deg, #7c3aed, #8b5cf6);
+}
+
+.bom-stat-body {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.bom-stat-label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #475569;
+    margin-bottom: 0.2rem;
+}
+
+.bom-stat-val {
+    font-size: 1.45rem;
+    font-weight: 800;
+    color: #0f172a;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+}
+
+.bom-stat-sub {
+    font-size: 0.73rem;
+    color: #64748b;
+    margin-top: 0.2rem;
+    font-weight: 500;
+}
+
+.bom-export {
+    position: relative;
+    flex-shrink: 0;
+}
+
+.bom-export-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    border: 1px solid #cbd5e1;
+    background: #fff;
+    color: #334155;
+    border-radius: 8px;
+    padding: 0.38rem 0.7rem;
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+.bom-export-btn .material-icons-round {
+    font-size: 1.05rem;
+    color: #0d9488;
+}
+
+.bom-export-btn .chev {
+    font-size: 1.1rem;
+    color: #94a3b8;
+}
+
+.bom-export-btn:hover,
+.bom-export-btn[aria-expanded="true"] {
+    border-color: #0d9488;
+    color: #0f766e;
+}
+
+.bom-export .sales-export-menu {
+    position: absolute;
+    right: 0;
+    top: calc(100% + 6px);
+    min-width: 200px;
+    z-index: 20;
+}
+
+/* Pagination */
+.bom-pagination-wrap {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.85rem 1.25rem;
+    border-top: 1px solid #e2e8f0;
+    background: #ffffff;
+    border-radius: 0 0 0.75rem 0.75rem;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+}
+
+.bom-pagination-info {
+    font-size: 0.82rem;
+    color: #64748b;
+    font-weight: 500;
+}
+
+.bom-pagination-info strong {
+    color: #0f172a;
+    font-weight: 700;
+}
+
+.bom-pagination-btns {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+}
+
+.bom-page-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.25rem;
+    min-width: 32px;
+    height: 32px;
+    padding: 0 0.6rem;
+    border: 1px solid #cbd5e1;
+    border-radius: 0.45rem;
+    background: #ffffff;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #334155;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.bom-page-btn:hover:not(:disabled) {
+    background: #f1f5f9;
+    border-color: #94a3b8;
+    color: #0f172a;
+}
+
+.bom-page-btn.active {
+    background: #0d9488;
+    color: #ffffff;
+    border-color: #0d9488;
+    box-shadow: 0 2px 6px rgba(13, 148, 136, 0.3);
+}
+
+.bom-page-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+}
+
+.bom-page-ellipsis {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 32px;
+    font-size: 0.85rem;
+    color: #94a3b8;
+}

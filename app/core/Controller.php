@@ -47,7 +47,6 @@ class Controller
      */
     protected function notFound(string $message = 'Page not found.'): void
     {
-        require_once base_path('app/controllers/ErrorController.php');
         (new ErrorController())->notFound($message);
     }
 
@@ -62,5 +61,17 @@ class Controller
         header('Pragma: no-cache');
         header('Expires: 0');
         echo json_encode($data);
+    }
+
+    protected function sapODataClient(): SapODataClient
+    {
+        require_once base_path('app/core/SapODataClient.php');
+        return new SapODataClient();
+    }
+
+    protected function sapBaseUrl(): string
+    {
+        $cfg = config('sap');
+        return rtrim((string) ($cfg['base_url'] ?? 'http://APP-PROD.evolvclothing.com:8000'), '/');
     }
 }

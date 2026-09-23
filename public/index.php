@@ -57,6 +57,6 @@ if ($routePath === '/production') {
 
 // START ROUTER
 $router = new Router();
-require EVOLV_ROOT . '/routes/web.php';
+require EVOLV_ROOT . '/app/routes/web.php';
 
 $router->dispatch($_SERVER['REQUEST_METHOD'] ?? 'GET', $routePath);

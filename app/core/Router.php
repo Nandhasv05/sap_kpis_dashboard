@@ -92,7 +92,6 @@ class Router
             return;
         }
 
-        require_once base_path('app/controllers/ErrorController.php');
         (new ErrorController())->notFound();
     }
 }
