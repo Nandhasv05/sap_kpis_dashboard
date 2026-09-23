@@ -12,6 +12,7 @@ return [
         'app-prod.evolvclothing.com:8000:10.103.10.18',
     ],
     'service'          => '/sap/opu/odata/sap/ZI_SALESAPI_HUB_CDS/ZI_SalesApi_HUB',
+    'quotation_service'=> '/sap/opu/odata/sap/ZI_QUOTATIONSALESORDER_HUB_CDS/ZI_QuotationSalesOrder_HUB',
     'material_service' => '/sap/opu/odata/sap/ZI_MATERIALAPI_HUB_CDS/ZI_MaterialAPI_HUB',
     'username'         => 'APIUSER',
     'password'         => 'Api@321',

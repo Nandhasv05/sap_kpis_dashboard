@@ -31,7 +31,7 @@
     let loaderTimer = null;
     let loaderStarted = 0;
 
-    let trendChart, divisionChart, stylesChart, channelChart, statusChart;
+    let trendChart, divisionChart, stylesChart, channelChart, statusChart, soQtyChart, soMixChart;
 
     const hub = document.getElementById('salesHub');
     const loaderNote = document.getElementById('salesLoaderNote');
@@ -57,6 +57,7 @@
 
     // Enhanced Drawer Elements
     const drawerSoNum = document.getElementById('salesDetailSoNum');
+    const drawerQtNum = document.getElementById('salesDetailQtNum');
     const drawerLineNum = document.getElementById('salesDetailLineNum');
     const drawerPlantNum = document.getElementById('salesDetailPlantNum');
     const drawerStatusPill = document.getElementById('salesDetailStatusPill');
@@ -76,6 +77,13 @@
     const subDrawerStatusBadge = document.getElementById('subDrawerStatusBadge');
     const subDrawerTitle = document.getElementById('subDrawerTitle');
     const drawerNavCards = document.getElementById('salesDrawerNavCards');
+    const soLineDrawer = document.getElementById('soLineDrawer');
+    const soLineBack = document.getElementById('soLineBack');
+    const soLineClose = document.getElementById('soLineClose');
+    const soLineTitle = document.getElementById('soLineTitle');
+    const soLineSub = document.getElementById('soLineSub');
+    const soLineKicker = document.getElementById('soLineKicker');
+    const soLineFacts = document.getElementById('soLineFacts');
     const dncPlanningVal = document.getElementById('dncPlanningVal');
     const dncBomVal = document.getElementById('dncBomVal');
     const dncMaterialVal = document.getElementById('dncMaterialVal');
@@ -94,11 +102,15 @@
     let currentSortCol = '';
     let currentSortDir = 'asc';
     let currentRawRecords = [];
+    let soDetailLines = {};
     let activeColFilters = {
-        sales_order: '',
+        quotation: '',
         line_item: '',
         material: '',
-        plant: '',
+        item_category: '',
+        customer: '',
+        customer_ref: '',
+        sales_order: '',
         date: '',
         qty: '',
         net_amount: '',
@@ -144,10 +156,12 @@
     const activeFilterText = document.getElementById('salesActiveFilterText');
     const activeFilterClear = document.getElementById('salesActiveFilterClear');
 
+    /********** DASHBOARD SEARCH TERM FUNCTIONS *********   */
     function getDashboardSearchTerm() {
         return String(headerSoSearchInput?.value || searchInput?.value || '').trim();
     }
 
+    /********** DASHBOARD SEARCH TERM FUNCTIONS *********   */
     function setDashboardSearchTerm(value) {
         const v = value == null ? '' : String(value);
         if (headerSoSearchInput && headerSoSearchInput.value !== v) headerSoSearchInput.value = v;
@@ -156,7 +170,8 @@
         if (headerSoSearchClear) headerSoSearchClear.hidden = empty;
         if (salesSearchClear) salesSearchClear.hidden = empty;
     }
-
+    
+    /********** CLEAR DASHBOARD SEARCH FUNCTION *********   */
     function clearDashboardSearch(refetch = true) {
         setDashboardSearchTerm('');
         if (headerSoAutocomplete) headerSoAutocomplete.hidden = true;
@@ -164,20 +179,27 @@
         if (refetch) fetchPage(1);
     }
 
+    /********** DASHBOARD BACKDROP AND DRAWER ELEMENTS *********   */
     if (backdrop && backdrop.parentElement !== document.body) {
         document.body.appendChild(backdrop);
     }
+
+    /********** SALES ORDER DETAIL DRAWER ELEMENTS *********   */
     if (drawer && drawer.parentElement !== document.body) {
         document.body.appendChild(drawer);
     }
+
+    /********** PROCUREMENT BACKDROP AND MODAL ELEMENTS *********   */
     if (procBackdrop && procBackdrop.parentElement !== document.body) {
         document.body.appendChild(procBackdrop);
     }
+
+    /********** PROCUREMENT MODAL ELEMENTS *********   */
     if (procModal && procModal.parentElement !== document.body) {
         document.body.appendChild(procModal);
     }
 
-    // CHART ANIMATIONS
+    /********** CHART ANIMATIONS *********   */
     const chartAnim = {
         duration: 1100,
         easing: 'easeOutQuart',
@@ -196,6 +218,7 @@
         return symbol + Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
     }
 
+    /********** NUMBER FORMATTING FUNCTION *********   */
     function fmtNum(n) {
         return Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 3 });
     }
@@ -210,6 +233,7 @@
         return (Math.round(num * 1000) / 1000).toString();
     }
 
+    /********** ROUND NUMBER FORMATTING FUNCTION *********   */
     function fmtRoundNum(n) {
         if (n === null || n === undefined || n === '') return '0';
         const num = parseFloat(String(n).replace(/,/g, ''));
@@ -319,9 +343,10 @@
         const html = (typeof window.kapisEmptyHtml === 'function')
             ? window.kapisEmptyHtml(title, hint)
             : `<div class="empty-state">${title}<br>${hint || ''}</div>`;
-        return `<tr><td colspan="${cols || 10}" class="empty-state">${html}</td></tr>`;
+        return `<tr><td colspan="${cols || 11}" class="empty-state">${html}</td></tr>`;
     }
 
+    /********** SHOW SALES LOADER FUNCTION *********   */
     function showSalesLoader(active) {
         const loader = document.getElementById('salesLoader');
         if (hub) hub.classList.toggle('is-loading', active);
@@ -580,6 +605,7 @@
         }
     }
 
+    /********** SWITCH DRAWER TAB FUNCTION *********   */
     function switchDrawerTab(tabName) {
         if (!tabName) {
             closeSubDrawer();
@@ -587,7 +613,8 @@
             openSubDrawer(tabName);
         }
     }
-
+    
+    /********** DRAWER NAV CARD CLICK EVENT LISTENER *********   */
     if (drawerNavCards) {
         drawerNavCards.querySelectorAll('.drawer-nav-card, .so-sheet-tab, .so-module').forEach(btn => {
             btn.addEventListener('click', (e) => {
@@ -598,6 +625,16 @@
         });
     }
 
+    /********** SO LINE DRAWER BACK BUTTON CLICK EVENT LISTENER *********   */
+    soLineBack?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeSoLineDrawer();
+    });
+    soLineClose?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        closeSoLineDrawer();
+    });
+
     subDrawerBackBtn?.addEventListener('click', (e) => {
         e.stopPropagation();
         closeSubDrawer();
@@ -605,9 +642,10 @@
 
     subDrawerCloseBtn?.addEventListener('click', (e) => {
         e.stopPropagation();
-        closeDetail();
+        closeSoLineDrawer();
     });
 
+    /********** RENDER PLANNING PANEL FUNCTION *********   */
     function renderPlanningPanel(record) {
         if (!panelPlanning) return;
         const isFixed = record.delivery_date_quantity_is_fixed === 'X' || record.delivery_date_quantity_is_fixed === 'true';
@@ -615,6 +653,41 @@
         const isDelivRel = record.item_is_delivery_relevant === 'X' || record.item_is_delivery_relevant === 'true';
 
         panelPlanning.innerHTML = `
+            <div class="drawer-section-card">
+                <div class="drawer-sec-header">
+                    <div class="drawer-sec-title-wrap">
+                        <span class="material-icons-round drawer-sec-icon" style="color:#0d9488">request_quote</span>
+                        <h4 class="drawer-sec-title">Quotation → Sales Order</h4>
+                    </div>
+                    <span class="category-tag">${escapeHtml(record.quotation_type || record.item_category || 'QT')}</span>
+                </div>
+                <div class="drawer-info-grid">
+                    <div class="drawer-info-item">
+                        <span class="info-lbl">Quotation</span>
+                        <span class="info-val highlight-blue">${escapeHtml(record.quotation || '—')}</span>
+                    </div>
+                    <div class="drawer-info-item">
+                        <span class="info-lbl">Follow-on Sales Order</span>
+                        <span class="info-val">${escapeHtml(record.sales_order || '—')}</span>
+                    </div>
+                    <div class="drawer-info-item">
+                        <span class="info-lbl">Sales Order Type</span>
+                        <span class="info-val">${escapeHtml(record.sales_order_type || '—')}</span>
+                    </div>
+                    <div class="drawer-info-item">
+                        <span class="info-lbl">Item / Material</span>
+                        <span class="info-val">${escapeHtml(record.line_item || '—')} · ${escapeHtml(record.material || '—')}</span>
+                    </div>
+                    <div class="drawer-info-item">
+                        <span class="info-lbl">Requested Delivery</span>
+                        <span class="info-val">${escapeHtml(fmtSapDate(record.requested_delivery_date) || record.requested_delivery_date || '—')}</span>
+                    </div>
+                    <div class="drawer-info-item">
+                        <span class="info-lbl">Valid From / To</span>
+                        <span class="info-val">${escapeHtml(fmtSapDate(record.valid_from) || record.valid_from || '—')} → ${escapeHtml(fmtSapDate(record.valid_to) || record.valid_to || '—')}</span>
+                    </div>
+                </div>
+            </div>
             <div class="drawer-section-card">
                 <div class="drawer-sec-header">
                     <div class="drawer-sec-title-wrap">
@@ -709,6 +782,7 @@
         `;
     }
 
+    /********** COPY TEXT TO CLIPBOARD FUNCTION *********   */
     function copyTextToClipboard(text, btn) {
         if (!text) return;
         const doSuccess = () => {
@@ -725,6 +799,7 @@
         }
     }
 
+    /********** FALLBACK COPY TEXT TO CLIPBOARD FUNCTION *********   */
     function fallbackCopy(text, cb) {
         const ta = document.createElement('textarea');
         ta.value = text;
@@ -745,7 +820,7 @@
 
     function renderBomPanel(record, isLoading = false, error = null, bomData = null, rawPayload = null) {
         if (!panelBom) return;
-        const so = String(record?.sales_order || '4203').trim();
+        const so = String(record?.sales_order || '').trim();
 
         if (isLoading) {
             panelBom.innerHTML = `
@@ -795,8 +870,8 @@
                     </div>
                     <div class="bom-stat-body">
                         <span class="bom-stat-label">Total Components</span>
-                        <span class="bom-stat-val">${comps.length}</span>
-                        <span class="bom-stat-sub">BOM Line Items</span>
+                        <span class="bom-stat-val" id="bomStatComponents">${comps.length}</span>
+                        <span class="bom-stat-sub" id="bomStatComponentsSub">BOM Line Items</span>
                     </div>
                 </div>
 
@@ -806,8 +881,8 @@
                     </div>
                     <div class="bom-stat-body">
                         <span class="bom-stat-label">Plan Quantity</span>
-                        <span class="bom-stat-val">${fmtRoundNum(totalPlan)}</span>
-                        <span class="bom-stat-sub">Planned Demand</span>
+                        <span class="bom-stat-val" id="bomStatPlan">${fmtRoundNum(totalPlan)}</span>
+                        <span class="bom-stat-sub" id="bomStatPlanSub">Planned Demand</span>
                     </div>
                 </div>
 
@@ -817,8 +892,8 @@
                     </div>
                     <div class="bom-stat-body">
                         <span class="bom-stat-label">Prd Quantity</span>
-                        <span class="bom-stat-val">${fmtRoundNum(totalPrd)}</span>
-                        <span class="bom-stat-sub">Confirmed Produced</span>
+                        <span class="bom-stat-val" id="bomStatPrd">${fmtRoundNum(totalPrd)}</span>
+                        <span class="bom-stat-sub" id="bomStatPrdSub">Confirmed Produced</span>
                     </div>
                 </div>
 
@@ -828,8 +903,8 @@
                     </div>
                     <div class="bom-stat-body">
                         <span class="bom-stat-label">BOM Quantity</span>
-                        <span class="bom-stat-val">${fmtRoundNum(totalBomQty)}</span>
-                        <span class="bom-stat-sub">Total Component Ratio</span>
+                        <span class="bom-stat-val" id="bomStatBomQty">${fmtRoundNum(totalBomQty)}</span>
+                        <span class="bom-stat-sub" id="bomStatBomSub">Total Component Ratio</span>
                     </div>
                 </div>
             </div>
@@ -845,8 +920,19 @@
                                 Total: ${comps.length} components
                             </span>
                         </div>
-                        <div style="display:flex;align-items:center;gap:0.6rem">
-                            <input type="text" class="bom-search-input" placeholder="Search Item or Material…" style="padding:0.42rem 0.85rem;border:1px solid #cbd5e1;border-radius:0.55rem;font-size:0.82rem;outline:none;min-width:240px;box-shadow:inset 0 1px 2px rgba(0,0,0,0.03)"/>
+                        <div style="display:flex;align-items:center;gap:0.6rem;flex-wrap:wrap">
+                            <input type="text" class="bom-search-input" placeholder="Search Item or Material…" style="padding:0.42rem 0.85rem;border:1px solid #cbd5e1;border-radius:0.55rem;font-size:0.82rem;outline:none;min-width:220px;box-shadow:inset 0 1px 2px rgba(0,0,0,0.03)"/>
+                            <div class="bom-export" id="bomExport">
+                                <button type="button" class="sales-export-btn bom-export-btn" id="bomExportBtn" aria-haspopup="menu" aria-expanded="false">
+                                    <span class="material-icons-round">file_download</span>
+                                    Export
+                                    <span class="material-icons-round chev">expand_more</span>
+                                </button>
+                                <div class="sales-export-menu" id="bomExportMenu" hidden>
+                                    <button type="button" data-bom-export="filtered">Filtered rows (CSV)</button>
+                                    <button type="button" data-bom-export="all">All components (CSV)</button>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
@@ -964,6 +1050,78 @@
         const infoEl = panelBom.querySelector('#bomPaginationInfo');
         const btnsEl = panelBom.querySelector('#bomPaginationBtns');
         const totalBadgeEl = panelBom.querySelector('#bomTotalBadge');
+
+        function sumBomRows(rows) {
+            let plan = 0, prd = 0, bomQty = 0;
+            (rows || []).forEach((c) => {
+                plan += parseFloat(c.PlanQty || 0) || 0;
+                prd += parseFloat(c.PrdQty || 0) || 0;
+                bomQty += parseFloat(c.BOMQuantity || 0) || 0;
+            });
+            return { count: (rows || []).length, plan, prd, bomQty };
+        }
+
+        function updateBomStatCards(rows) {
+            const t = sumBomRows(rows);
+            const filtered = t.count !== comps.length;
+            const setText = (id, value) => {
+                const el = panelBom.querySelector(id);
+                if (el) el.textContent = value;
+            };
+            setText('#bomStatComponents', String(t.count));
+            setText('#bomStatPlan', fmtRoundNum(t.plan));
+            setText('#bomStatPrd', fmtRoundNum(t.prd));
+            setText('#bomStatBomQty', fmtRoundNum(t.bomQty));
+            setText('#bomStatComponentsSub', filtered ? `${t.count} of ${comps.length} line items` : 'BOM Line Items');
+            setText('#bomStatPlanSub', filtered ? 'Filtered planned demand' : 'Planned Demand');
+            setText('#bomStatPrdSub', filtered ? 'Filtered produced qty' : 'Confirmed Produced');
+            setText('#bomStatBomSub', filtered ? 'Filtered component ratio' : 'Total Component Ratio');
+        }
+
+        function bomRowsToCsv(rows) {
+            const header = ['Item', 'Material', 'Plan Qty', 'Prd Qty', 'BOM Quantity'];
+            const lines = [header.join(',')];
+            (rows || []).forEach((c) => {
+                lines.push([
+                    c.Item ?? '',
+                    c.Material ?? '',
+                    c.PlanQty ?? '',
+                    c.PrdQty ?? '',
+                    c.BOMQuantity ?? '',
+                ].map(csvEscape).join(','));
+            });
+            return lines.join('\r\n');
+        }
+
+        const exportWrap = panelBom.querySelector('#bomExport');
+        const exportBtn = panelBom.querySelector('#bomExportBtn');
+        const exportMenu = panelBom.querySelector('#bomExportMenu');
+        function closeBomExportMenu() {
+            if (!exportMenu) return;
+            exportMenu.hidden = true;
+            exportBtn?.setAttribute('aria-expanded', 'false');
+        }
+        exportBtn?.addEventListener('click', (e) => {
+            e.stopPropagation();
+            if (!exportMenu) return;
+            const open = exportMenu.hidden;
+            exportMenu.hidden = !open;
+            exportBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+            if (open) {
+                window.setTimeout(() => {
+                    document.addEventListener('click', closeBomExportMenu, { once: true });
+                }, 0);
+            }
+        });
+        exportMenu?.querySelectorAll('[data-bom-export]').forEach((btn) => {
+            btn.addEventListener('click', () => {
+                const mode = btn.getAttribute('data-bom-export');
+                const rows = mode === 'all' ? comps : activeFilteredComps;
+                const so = String(record?.sales_order || 'bom').trim();
+                downloadCsv(`bom-${so}-${mode}-${Date.now()}.csv`, bomRowsToCsv(rows));
+                closeBomExportMenu();
+            });
+        });
 
         function renderPage(page) {
             const totalItems = activeFilteredComps.length;
@@ -1134,6 +1292,7 @@
 
             activeFilteredComps = filtered;
             renderPage(1);
+            updateBomStatCards(activeFilteredComps);
 
             // Update total count badge
             if (totalBadgeEl) {
@@ -1211,7 +1370,12 @@
 
     async function loadDrawerBom(record, forceReload = false) {
         if (!record) return;
-        const so = String(record.sales_order || '4203').trim();
+        const so = String(record.sales_order || '').trim();
+        if (isBlankCode(so)) {
+            renderApiMissing(panelBom, 'Sales order required', 'This quotation has no follow-on sales order, so BOM cannot be loaded.');
+            if (dncBomVal) dncBomVal.textContent = 'No SO';
+            return;
+        }
         if (!forceReload && bomCacheBySo[so]) {
             renderBomPanel(record, false, null, bomCacheBySo[so].data, bomCacheBySo[so].raw);
             if (dncBomVal) dncBomVal.textContent = `${bomCacheBySo[so].data.length} components`;
@@ -1248,7 +1412,7 @@
 
     function renderMaterialPanel(record, isLoading = false, error = null, matData = null, rawPayload = null, mode = 'material') {
         if (!panelMaterial) return;
-        const mat = String(record?.material || '3H001262005').trim();
+        const mat = String(record?.material || '').trim();
         const isDateRange = (mode === 'date_range');
 
         if (isLoading) {
@@ -1936,18 +2100,27 @@
 
     async function loadDrawerMaterial(record, forceReload = false, mode = 'material') {
         if (!record) return;
-        const mat = String(record.material || '3H001262051').trim();
+        let working = record;
+        if (mode !== 'date_range' && isBlankCode(working.material)) {
+            working = resolveWorkingRecord(record);
+        }
+        const mat = String(working.material || '').trim();
+        if (mode !== 'date_range' && isBlankCode(mat)) {
+            renderApiMissing(panelMaterial, 'Material required', 'Select a quotation item with a material code to load Material Master.');
+            if (dncMaterialVal) dncMaterialVal.textContent = '—';
+            return;
+        }
         const cacheKey = (mode === 'date_range') ? '__date_range_sep2026__' : mat;
 
         if (!forceReload && matCacheByMat[cacheKey]) {
-            renderMaterialPanel(record, false, null, matCacheByMat[cacheKey].data, matCacheByMat[cacheKey].raw, mode);
+            renderMaterialPanel(working, false, null, matCacheByMat[cacheKey].data, matCacheByMat[cacheKey].raw, mode);
             if (dncMaterialVal && mode === 'date_range') {
                 dncMaterialVal.textContent = `${matCacheByMat[cacheKey].data.length} materials`;
             }
             return;
         }
 
-        renderMaterialPanel(record, true, null, null, null, mode);
+        renderMaterialPanel(working, true, null, null, null, mode);
 
         const endpoint = cfg.materialApiUrl || '/sales/material-api';
         const query = (mode === 'date_range')
@@ -1961,16 +2134,16 @@
             if (payload.status === 'error' || !payload.data) {
                 const err = payload.error || 'No material records returned from SAP';
                 matCacheByMat[cacheKey] = { data: [], raw: payload };
-                renderMaterialPanel(record, false, err, [], payload, mode);
+                renderMaterialPanel(working, false, err, [], payload, mode);
             } else {
                 matCacheByMat[cacheKey] = { data: payload.data, raw: payload };
-                renderMaterialPanel(record, false, null, payload.data, payload, mode);
+                renderMaterialPanel(working, false, null, payload.data, payload, mode);
                 if (dncMaterialVal && mode === 'date_range') {
                     dncMaterialVal.textContent = `${payload.data.length} materials`;
                 }
             }
         } catch (err) {
-            renderMaterialPanel(record, false, err.message, [], null, mode);
+            renderMaterialPanel(working, false, err.message, [], null, mode);
         }
     }
 
@@ -1980,7 +2153,7 @@
 
     function renderProcurementPanel(record, isLoading = false, error = null, procData = null, rawPayload = null) {
         if (!panelProcurement) return;
-        const so = String(record?.sales_order || '4203').trim();
+        const so = String(record?.sales_order || '').trim();
 
         if (isLoading) {
             panelProcurement.innerHTML = `
@@ -2615,7 +2788,12 @@
 
     async function loadDrawerProcurement(record, forceReload = false) {
         if (!record) return;
-        const so = String(record.sales_order || '4203').trim();
+        const so = String(record.sales_order || '').trim();
+        if (isBlankCode(so)) {
+            renderApiMissing(panelProcurement, 'Sales order required', 'This quotation has no follow-on sales order, so procurement cannot be loaded.');
+            if (dncProcVal) dncProcVal.textContent = 'No SO';
+            return;
+        }
         if (!forceReload && procCacheBySo[so]) {
             renderProcurementPanel(record, false, null, procCacheBySo[so].data, procCacheBySo[so].raw);
             if (dncProcVal) dncProcVal.textContent = `${procCacheBySo[so].data.length} components`;
@@ -2646,70 +2824,347 @@
         }
     }
 
+    function isBlankCode(value) {
+        const s = String(value ?? '').trim();
+        return s === '' || s === '—' || s === '-' || s === 'null';
+    }
+
+    function isTagCategory(record) {
+        return String(record?.item_category || '').trim().toUpperCase() === 'TAG';
+    }
+
+    function quotationFamilyLines(record) {
+        const q = String(record?.quotation || '').trim();
+        const so = String(record?.sales_order || '').trim();
+        const fromPage = (currentRawRecords || []).filter((r) => {
+            if (q && String(r.quotation || '').trim() === q) return true;
+            if (!isBlankCode(so) && String(r.sales_order || '').trim() === so) return true;
+            return false;
+        });
+        const extra = [...getSoDetailLines(so), ...getSoDetailLines(q)];
+        const map = new Map();
+        [...fromPage, ...extra].forEach((r) => {
+            const id = String(r.id || `${r.quotation}-${r.line_item}-${r.material}`);
+            if (!map.has(id)) map.set(id, r);
+        });
+        return Array.from(map.values()).sort((a, b) => (Number(a.line_item) || 0) - (Number(b.line_item) || 0));
+    }
+
+    function resolveWorkingRecord(clicked) {
+        const family = quotationFamilyLines(clicked || {});
+        const items = family.filter((r) => !r.is_header);
+        let working = clicked || {};
+        if (clicked?.is_header || isBlankCode(clicked?.material)) {
+            working = items.find(isTagCategory) || items.find((r) => !isBlankCode(r.material)) || clicked || {};
+        }
+        const so = !isBlankCode(clicked?.sales_order) ? clicked.sales_order : (working.sales_order || '');
+        return {
+            ...working,
+            sales_order: so,
+            quotation: clicked?.quotation || working.quotation,
+            customer: clicked?.customer || working.customer,
+            customer_ref: clicked?.customer_ref || working.customer_ref,
+            quotation_type: clicked?.quotation_type || working.quotation_type,
+            requested_delivery_date: clicked?.requested_delivery_date || working.requested_delivery_date,
+            valid_from: clicked?.valid_from || working.valid_from,
+            valid_to: clicked?.valid_to || working.valid_to,
+            _family: family,
+            _items: items,
+        };
+    }
+
+    function renderApiMissing(panel, title, message) {
+        if (!panel) return;
+        panel.innerHTML = `
+            <div class="drawer-section-card" style="text-align:center;padding:2.5rem 1rem">
+                <span class="material-icons-round" style="font-size:2.4rem;color:#f59e0b;margin-bottom:0.5rem;display:block">info</span>
+                <div style="font-weight:700;font-size:1rem;color:#0f172a;margin-bottom:0.35rem">${escapeHtml(title)}</div>
+                <div style="color:#64748b;font-size:0.85rem">${escapeHtml(message)}</div>
+            </div>
+        `;
+    }
+
+    function getSoDetailLines(so) {
+        const key = String(so || '').trim();
+        if (!key || key === '—') return [];
+        if (Array.isArray(soDetailLines[key])) return soDetailLines[key];
+        const stripped = key.replace(/^0+/, '') || '0';
+        if (Array.isArray(soDetailLines[stripped])) return soDetailLines[stripped];
+        const padded = key.padStart(10, '0');
+        if (Array.isArray(soDetailLines[padded])) return soDetailLines[padded];
+        return [];
+    }
+
+    function normLineNo(value) {
+        return String(value || '').replace(/^0+/, '') || '0';
+    }
+
+    function enrichFromSalesApi(item) {
+        if (!item) return item;
+        const lines = getSoDetailLines(item.sales_order);
+        if (!lines.length) return item;
+        const line = normLineNo(item.line_item);
+        const mat = String(item.material || '').trim();
+        let match = lines.find((l) => normLineNo(l.line_item) === line);
+        if (!match && mat && mat !== '—') {
+            match = lines.find((l) => String(l.material || '').trim() === mat);
+        }
+        if (!match) return item;
+        return {
+            ...item,
+            ...match,
+            quotation: item.quotation || match.quotation,
+            sales_order: item.sales_order || match.sales_order,
+            _family: item._family,
+        };
+    }
+
+    function fillSoModuleCards(record) {
+        const so = record?.sales_order || '';
+        const unit = record?.unit || 'EA';
+        const confd = Number(record?.confd_deliv_qty);
+        const qty = Number(record?.qty) || 0;
+        if (dncPlanningVal) {
+            dncPlanningVal.textContent = `${fmtNum(Number.isFinite(confd) && confd > 0 ? confd : qty)} ${unit}`;
+        }
+        if (dncBomVal) {
+            dncBomVal.textContent = (!isBlankCode(so) && bomCacheBySo[so]) ? `${bomCacheBySo[so].data.length} components` : 'Live SAP BOM';
+        }
+        if (dncMaterialVal) {
+            dncMaterialVal.textContent = isBlankCode(record?.material) ? '—' : record.material;
+        }
+        if (dncProcVal) {
+            if (!isBlankCode(so) && procCacheBySo[so]) {
+                dncProcVal.textContent = `${procCacheBySo[so].data.length} components`;
+            } else if (record?.delivery_status && record.delivery_status !== '—') {
+                dncProcVal.textContent = `Delivery ${record.delivery_status}`;
+            } else {
+                dncProcVal.textContent = isBlankCode(so) ? 'Needs sales order' : 'Ready';
+            }
+        }
+    }
+
+    function closeSoLineDrawer() {
+        closeSubDrawer();
+        if (soLineDrawer) {
+            soLineDrawer.classList.remove('open');
+            soLineDrawer.setAttribute('aria-hidden', 'true');
+        }
+    }
+
+    function openSoLineDrawer(item, familyRecord) {
+        if (!item) return;
+        currentDrawerRecord = resolveWorkingRecord(enrichFromSalesApi({
+            ...item,
+            sales_order: familyRecord?.sales_order || item.sales_order,
+            quotation: familyRecord?.quotation || item.quotation,
+        }));
+        const rec = currentDrawerRecord;
+        const so = rec.sales_order || '—';
+        const qt = rec.quotation || '—';
+        if (soLineKicker) soLineKicker.textContent = `ZI_SalesApi_HUB · SO ${so} · Line ${rec.line_item || '—'}`;
+        if (soLineTitle) soLineTitle.textContent = rec.material && !isBlankCode(rec.material) ? rec.material : `Sales Order ${so}`;
+        if (soLineSub) {
+            soLineSub.textContent = `Quotation ${qt} · Plant ${rec.plant || '—'} · ${rec.item_category || '—'} · ${fmtNum(rec.qty)} ${rec.unit || 'EA'}`;
+        }
+        if (soLineFacts) {
+            const facts = [
+                ['Line', rec.line_item || '—'],
+                ['Qty', `${fmtNum(rec.qty)} ${rec.unit || 'EA'}`],
+                ['Confirmed', `${fmtNum(rec.confd_deliv_qty || rec.qty)} ${rec.unit || 'EA'}`],
+                ['Net', fmtMoney(rec.net_amount)],
+                ['Cost', fmtMoney(rec.cost)],
+                ['Status', rec.sd_process_status && rec.sd_process_status !== '—' ? rec.sd_process_status : (rec.status || 'Active')],
+            ];
+            soLineFacts.innerHTML = facts.map(([label, val]) => (
+                `<div class="so-line-fact"><span>${escapeHtml(label)}</span><strong>${escapeHtml(String(val))}</strong></div>`
+            )).join('');
+        }
+        fillSoModuleCards(rec);
+        if (soLineDrawer) {
+            soLineDrawer.classList.add('open');
+            soLineDrawer.setAttribute('aria-hidden', 'false');
+        }
+    }
+
+    function renderRelatedOrderLines(record) {
+        const body = document.getElementById('soRelatedLinesBody');
+        const countEl = document.getElementById('soRelatedCount');
+        const family = record?._family || quotationFamilyLines(record);
+        const lines = family.length ? family : [];
+        if (countEl) {
+            countEl.textContent = `${lines.length} item${lines.length === 1 ? '' : 's'}`;
+        }
+        if (!body) return lines;
+        if (!lines.length) {
+            body.innerHTML = '<tr><td colspan="9" class="so-related-empty">No sales order items for this quotation.</td></tr>';
+            return lines;
+        }
+        body.innerHTML = lines.map((r, i) => {
+            const cat = r.item_category || (r.is_header ? 'HDR' : '—');
+            const desc = r.material_group && r.material_group !== '—' ? r.material_group : '';
+            return `
+            <tr class="so-related-row ${String(r.id) === String(record?.id) ? 'is-active' : ''}" data-related-idx="${i}" tabindex="0">
+                <td><span class="line-no">${escapeHtml(r.line_item)}</span></td>
+                <td><span class="category-tag">${escapeHtml(cat)}</span></td>
+                <td class="rpt-mat">
+                    <div>${escapeHtml(r.material || '—')}</div>
+                    ${desc ? `<div class="style-meta">${escapeHtml(desc)}</div>` : ''}
+                </td>
+                <td>${getPlantBadgeHtml(r.plant)}</td>
+                <td>${escapeHtml(r.customer || '—')}</td>
+                <td>${escapeHtml(r.quotation_type || r.sales_order_type || '—')}</td>
+                <td class="col-num">${fmtNum(r.qty)}${r.unit ? ` ${escapeHtml(r.unit)}` : ''}</td>
+                <td class="col-num">${fmtMoney(r.net_amount)}</td>
+                <td>${escapeHtml(r.sales_order || '—')}</td>
+            </tr>`;
+        }).join('');
+        body.querySelectorAll('.so-related-row').forEach((row) => {
+            const idx = Number(row.getAttribute('data-related-idx'));
+            const item = lines[idx];
+            if (!item) return;
+            row.addEventListener('click', (e) => {
+                e.stopPropagation();
+                body.querySelectorAll('.so-related-row').forEach((el) => el.classList.remove('is-active'));
+                row.classList.add('is-active');
+                openSoLineDrawer(item, record);
+            });
+        });
+        return lines;
+    }
+
+    function renderSoDashboardCharts(lines) {
+        const qtyEl = document.getElementById('soQtyChart');
+        const mixEl = document.getElementById('soMixChart');
+        const chartLines = (lines || []).filter((r) => !r.is_header);
+        const qtyLabels = chartLines.map((r) => `${r.line_item} ${r.material || ''}`.trim().slice(0, 22));
+        const qtyValues = chartLines.map((r) => Number(r.qty) || 0);
+        const mixMap = {};
+        chartLines.forEach((r) => {
+            const key = String(r.item_category || 'Other').trim() || 'Other';
+            const weight = Number(r.net_amount) || 0;
+            mixMap[key] = (mixMap[key] || 0) + (weight > 0 ? weight : Number(r.qty) || 0);
+        });
+        const mixLabels = Object.keys(mixMap);
+        const mixValues = Object.values(mixMap);
+        const mixColors = ['#0d9488', '#2563eb', '#d97706', '#7c3aed', '#e11d48', '#64748b'];
+
+        if (soQtyChart) {
+            soQtyChart.destroy();
+            soQtyChart = null;
+        }
+        if (soMixChart) {
+            soMixChart.destroy();
+            soMixChart = null;
+        }
+        if (qtyEl && typeof Chart !== 'undefined') {
+            soQtyChart = new Chart(qtyEl, {
+                type: 'bar',
+                data: {
+                    labels: qtyLabels.length ? qtyLabels : ['No items'],
+                    datasets: [{
+                        label: 'Quantity',
+                        data: qtyValues.length ? qtyValues : [0],
+                        backgroundColor: '#14b8a6',
+                        borderRadius: 8,
+                        maxBarThickness: 36,
+                    }],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { ticks: { font: { size: 10 }, color: '#64748b' }, grid: { display: false } },
+                        y: { beginAtZero: true, ticks: { color: '#94a3b8' }, grid: { color: 'rgba(15,23,42,0.06)' } },
+                    },
+                },
+            });
+        }
+        if (mixEl && typeof Chart !== 'undefined') {
+            soMixChart = new Chart(mixEl, {
+                type: 'doughnut',
+                data: {
+                    labels: mixLabels.length ? mixLabels : ['No data'],
+                    datasets: [{
+                        data: mixValues.length ? mixValues : [1],
+                        backgroundColor: mixValues.length ? mixColors.slice(0, mixValues.length) : ['#e2e8f0'],
+                        borderWidth: 0,
+                    }],
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    cutout: '62%',
+                    plugins: { legend: { display: mixLabels.length > 0, position: 'right', labels: { boxWidth: 10, font: { size: 11 } } } },
+                },
+            });
+        }
+
+        const itemsEl = document.getElementById('soDashItems');
+        const qtyKpi = document.getElementById('soDashQty');
+        const netKpi = document.getElementById('soDashNet');
+        const qtySum = chartLines.reduce((s, r) => s + (Number(r.qty) || 0), 0);
+        const netSum = chartLines.reduce((s, r) => s + (Number(r.net_amount) || 0), 0);
+        if (itemsEl) itemsEl.textContent = String(chartLines.length);
+        if (qtyKpi) qtyKpi.textContent = fmtNum(qtySum);
+        if (netKpi) netKpi.textContent = fmtMoney(netSum);
+    }
+
     function openSalesOrderOffcanvas(record, initialTab = null) {
         if (!record || !drawer) return;
-        currentDrawerRecord = record;
+        currentDrawerRecord = resolveWorkingRecord(record);
+        const related = renderRelatedOrderLines(currentDrawerRecord);
+        renderSoDashboardCharts(related);
+        const relatedNet = related.reduce((sum, r) => sum + (Number(r.net_amount) || 0), 0);
+        const relatedQty = related.reduce((sum, r) => sum + (Number(r.qty) || 0), 0);
+        const so = currentDrawerRecord.sales_order || '—';
+        const qt = currentDrawerRecord.quotation || '—';
 
-        // Header metadata
-        if (drawerSoNum) drawerSoNum.textContent = record.sales_order || '—';
-        if (drawerLineNum) drawerLineNum.textContent = record.line_item || '—';
-        if (drawerPlantNum) drawerPlantNum.textContent = record.plant || '—';
+        if (drawerQtNum) drawerQtNum.textContent = qt;
+        if (drawerSoNum) drawerSoNum.textContent = so;
+        if (drawerLineNum) drawerLineNum.textContent = String(related.length);
+        if (drawerPlantNum) drawerPlantNum.textContent = currentDrawerRecord.plant || '—';
         if (drawerStatusPill) {
-            drawerStatusPill.textContent = record.status || 'Active';
-            drawerStatusPill.className = `sales-status-pill ${statusClass(record.status)}`;
+            drawerStatusPill.hidden = true;
+            drawerStatusPill.textContent = currentDrawerRecord.status || 'Active';
         }
         if (detailTitle) {
-            detailTitle.textContent = record.material || record.style || `Sales Order #${record.sales_order}`;
+            detailTitle.textContent = currentDrawerRecord.material && !isBlankCode(currentDrawerRecord.material)
+                ? currentDrawerRecord.material
+                : `Quotation ${qt} → Sales Order ${so}`;
         }
         if (drawerSub) {
-            drawerSub.textContent = `${record.customer_ref || 'Customer Order'} · Plant ${record.plant || '—'} · Division: ${record.division || 'General'}`;
+            drawerSub.textContent = `Quotation ${qt} · Sales Order ${so} · ${related.length} item${related.length === 1 ? '' : 's'} · Plant ${currentDrawerRecord.plant || '—'}`;
         }
 
-        // Header pills (Net, Quantity, Date)
-        if (drawerNetVal) drawerNetVal.textContent = fmtMoney(record.net_amount);
-        if (drawerQtyVal) drawerQtyVal.textContent = `${fmtNum(record.qty)} ${record.unit || 'EA'}`;
-        if (drawerDateVal) drawerDateVal.textContent = fmtSapDate(record.date) || record.date || '—';
+        if (drawerNetVal) drawerNetVal.textContent = fmtMoney(relatedNet);
+        if (drawerQtyVal) drawerQtyVal.textContent = `${fmtNum(relatedQty)} ${currentDrawerRecord.unit || 'EA'}`;
+        if (drawerDateVal) drawerDateVal.textContent = fmtSapDate(currentDrawerRecord.date) || currentDrawerRecord.date || '—';
 
         const setOd = (id, val) => {
             const el = document.getElementById(id);
             if (el) el.textContent = val || '—';
         };
-        setOd('odSalesOrder', record.sales_order);
-        setOd('odLine', record.line_item);
-        setOd('odPlant', record.plant);
-        setOd('odStatus', record.status || 'Active');
-        setOd('odMaterial', record.material);
-        setOd('odMaterialGroup', record.material_group);
-        setOd('odQty', `${fmtNum(record.qty)} ${record.unit || 'EA'}`);
-        setOd('odNet', fmtMoney(record.net_amount));
-        setOd('odDate', fmtSapDate(record.date) || record.date);
-        setOd('odDivision', record.division);
-        setOd('odCustomer', record.customer_ref || record.customer);
-        setOd('odUnit', record.unit || record.order_unit || 'EA');
+        setOd('odSalesOrder', so);
+        setOd('odLine', currentDrawerRecord.line_item);
+        setOd('odPlant', currentDrawerRecord.plant);
+        setOd('odStatus', currentDrawerRecord.status || 'Active');
+        setOd('odMaterial', currentDrawerRecord.material);
+        setOd('odMaterialGroup', currentDrawerRecord.material_group);
+        setOd('odQty', `${fmtNum(currentDrawerRecord.qty)} ${currentDrawerRecord.unit || 'EA'}`);
+        setOd('odNet', fmtMoney(currentDrawerRecord.net_amount));
+        setOd('odDate', fmtSapDate(currentDrawerRecord.date) || currentDrawerRecord.date);
+        setOd('odDivision', currentDrawerRecord.division);
+        setOd('odCustomer', currentDrawerRecord.customer_ref || currentDrawerRecord.customer);
+        setOd('odUnit', currentDrawerRecord.unit || 'EA');
 
-        // Quick Stats Bar (if present)
-        if (drawerQuickNet) drawerQuickNet.textContent = fmtMoney(record.net_amount);
-        if (drawerQuickQty) drawerQuickQty.textContent = `${fmtNum(record.qty)} ${record.unit || 'EA'}`;
-        if (drawerQuickDate) drawerQuickDate.textContent = fmtSapDate(record.date) || record.date || '—';
-        if (drawerQuickPlant) drawerQuickPlant.textContent = record.plant || '—';
+        if (drawerQuickNet) drawerQuickNet.textContent = fmtMoney(relatedNet);
+        if (drawerQuickQty) drawerQuickQty.textContent = `${fmtNum(relatedQty)} ${currentDrawerRecord.unit || 'EA'}`;
+        if (drawerQuickDate) drawerQuickDate.textContent = fmtSapDate(currentDrawerRecord.date) || currentDrawerRecord.date || '—';
+        if (drawerQuickPlant) drawerQuickPlant.textContent = currentDrawerRecord.plant || '—';
 
-        // Domain Cards Values
-        if (dncPlanningVal) dncPlanningVal.textContent = `${fmtNum(record.confd_deliv_qty || record.qty)} ${record.unit || 'EA'}`;
-        if (dncBomVal) {
-            dncBomVal.textContent = bomCacheBySo[record.sales_order] ? `${bomCacheBySo[record.sales_order].data.length} components` : 'Live SAP BOM';
-        }
-        if (dncMaterialVal) {
-            dncMaterialVal.textContent = record.material || 'Material Master';
-        }
-        if (dncProcVal) {
-            if (procCacheBySo[record.sales_order]) {
-                dncProcVal.textContent = `${procCacheBySo[record.sales_order].data.length} components`;
-            } else {
-                dncProcVal.textContent = 'Syncing...';
-            }
-        }
-
-        // Open Offcanvas
+        closeSoLineDrawer();
         drawer.classList.add('open');
         drawer.setAttribute('aria-hidden', 'false');
         if (backdrop) {
@@ -2718,14 +3173,8 @@
         }
         document.body.classList.add('sales-detail-open');
 
-        // Reset activeDrawerTab so it opens with only the 4 cards by default
         activeDrawerTab = null;
-        switchDrawerTab(initialTab);
-
-        // Pre-fetch procurement in background for quick response if not cached
-        if (!procCacheBySo[record.sales_order]) {
-            loadDrawerProcurement(record);
-        }
+        closeSubDrawer();
     }
 
     function openDetail(record) {
@@ -2733,7 +3182,7 @@
     }
 
     function closeDetail() {
-        closeSubDrawer();
+        closeSoLineDrawer();
         drawer?.classList.remove('open');
         drawer?.setAttribute('aria-hidden', 'true');
         if (backdrop) {
@@ -2747,7 +3196,7 @@
         if (!summary) return;
         animateValue(document.getElementById('skNet'), summary.net_sales, v => fmtMoney(v));
         animateValue(document.getElementById('skQty'), summary.total_qty || 0, v => fmtNum(v));
-        animateValue(document.getElementById('skOrders'), summary.orders || 0, v => fmtNum(v));
+        animateValue(document.getElementById('skOrders'), summary.lines || summary.orders || 0, v => fmtNum(v));
         animateValue(document.getElementById('skAvg'), summary.avg_line || 0, v => fmtMoney(v));
         animateValue(document.getElementById('skReturn'), summary.return_rate || 0, v => v.toFixed(1) + '%');
         animateValue(document.getElementById('skMargin'), summary.gross_margin || 0, v => v.toFixed(1) + '%');
@@ -3231,7 +3680,7 @@
     function renderRows(records) {
         if (!tbody) return;
         if (!records.length) {
-            tbody.innerHTML = emptyRowHtml('No data found', 'No order lines match this period or filter.');
+            tbody.innerHTML = emptyRowHtml('No data found', 'No quotation lines match this filter.');
             return;
         }
 
@@ -3239,26 +3688,36 @@
 
         tbody.innerHTML = records.map((r, i) => {
             const sno = startIdx + i + 1;
+            const cat = r.item_category || (r.is_header ? 'HDR' : '');
+            const desc = r.material_group && r.material_group !== '—' ? r.material_group : '';
+            const soType = r.sales_order_type ? ` · ${escapeHtml(r.sales_order_type)}` : '';
             return `
-                <tr class="sales-row row-animate" data-id="${escapeHtml(r.id)}" tabindex="0" role="button" title="Click to open Sales Order details (Planning, BOM, Material, Procurement)" style="animation-delay:${Math.min(i, 12) * 0.03}s">
+                <tr class="sales-row row-animate" data-id="${escapeHtml(r.id)}" tabindex="0" role="button" title="Quotation ${escapeHtml(r.quotation)} item ${escapeHtml(r.line_item)}" style="animation-delay:${Math.min(i, 12) * 0.03}s">
                     <td style="text-align:center;"><span class="sales-sno">${sno}</span></td>
                     <td>
-                        <button type="button" class="so-id-btn" data-so="${escapeHtml(r.sales_order)}" title="Click to view Sales Order #${escapeHtml(r.sales_order)} details">
-                            <span class="material-icons-round">receipt_long</span>
-                            <span>${escapeHtml(r.sales_order)}</span>
+                        <button type="button" class="so-id-btn" data-so="${escapeHtml(r.quotation)}" title="Quotation ${escapeHtml(r.quotation)}">
+                            <span class="material-icons-round">request_quote</span>
+                            <span>${escapeHtml(r.quotation)}</span>
                         </button>
                     </td>
                     <td><span class="line-no">${escapeHtml(r.line_item)}</span></td>
                     <td class="col-style">
-                        <span class="style-name">${escapeHtml(r.material)}</span>
-                        ${r.material_group && r.material_group !== '—' ? `<span class="style-meta">${escapeHtml(r.material_group)}</span>` : ''}
+                        <span class="style-name">${escapeHtml(r.material || '—')}</span>
+                        ${desc ? `<span class="style-meta">${escapeHtml(desc)}</span>` : ''}
                     </td>
-                    <td>${getPlantBadgeHtml(r.plant)}</td>
-                    <td class="col-date">${escapeHtml(fmtSapDate(r.date) || r.date)}</td>
-                    <td class="col-num">${fmtNum(r.qty)}</td>
+                    <td>${cat ? `<span class="category-tag">${escapeHtml(cat)}</span>` : '—'}</td>
+                    <td>${escapeHtml(r.customer || '—')}</td>
+                    <td class="col-style"><span class="style-name">${escapeHtml(r.customer_ref || '—')}</span></td>
+                    <td class="col-date">${escapeHtml(fmtSapDate(r.date) || r.date || '—')}</td>
+                    <td class="col-num">${fmtNum(r.qty)}${r.unit ? ` ${escapeHtml(r.unit)}` : ''}</td>
                     <td class="col-num revenue-cell">${fmtMoney(r.net_amount)}</td>
-                    <td><span class="sales-status-pill ${statusClass(r.status)}">${escapeHtml(r.status)}</span></td>
-                    <td class="col-go" title="Open Sales Order Details"><span class="btn-line-detail material-icons-round">chevron_right</span></td>
+                    <td>
+                        <button type="button" class="so-id-btn" data-so="${escapeHtml(r.sales_order)}" title="Follow-on Sales Order ${escapeHtml(r.sales_order)}">
+                            <span class="material-icons-round">receipt_long</span>
+                            <span>${escapeHtml(r.sales_order)}</span>
+                        </button>
+                        ${soType ? `<span class="style-meta">${soType}</span>` : ''}
+                    </td>
                 </tr>
             `;
         }).join('');
@@ -3285,9 +3744,9 @@
 
         // 1. Column-level filters
         list = list.filter(r => {
-            if (activeColFilters.sales_order) {
-                const so = String(r.sales_order || '').toLowerCase();
-                if (!so.includes(activeColFilters.sales_order.toLowerCase())) return false;
+            if (activeColFilters.quotation) {
+                const qn = String(r.quotation || '').toLowerCase();
+                if (!qn.includes(activeColFilters.quotation.toLowerCase())) return false;
             }
             if (activeColFilters.line_item) {
                 const ln = String(r.line_item || '');
@@ -3299,9 +3758,33 @@
                 const q = activeColFilters.material.toLowerCase();
                 if (!mat.includes(q) && !grp.includes(q)) return false;
             }
-            if (activeColFilters.plant) {
-                const pl = String(r.plant || '').toUpperCase();
-                if (pl !== activeColFilters.plant.toUpperCase()) return false;
+            if (activeColFilters.item_category) {
+                const cat = String(r.item_category || '').toLowerCase();
+                if (!cat.includes(activeColFilters.item_category.toLowerCase())) return false;
+            }
+            if (activeColFilters.customer) {
+                const cu = String(r.customer || '').toLowerCase();
+                if (!cu.includes(activeColFilters.customer.toLowerCase())) return false;
+            }
+            if (activeColFilters.quotation_type) {
+                const ty = String(r.quotation_type || '').toLowerCase();
+                if (!ty.includes(activeColFilters.quotation_type.toLowerCase())) return false;
+            }
+            if (activeColFilters.customer_ref) {
+                const cr = String(r.customer_ref || '').toLowerCase();
+                if (!cr.includes(activeColFilters.customer_ref.toLowerCase())) return false;
+            }
+            if (activeColFilters.sales_order) {
+                const so = String(r.sales_order || '').toLowerCase();
+                if (!so.includes(activeColFilters.sales_order.toLowerCase())) return false;
+            }
+            if (activeColFilters.created_by) {
+                const cb = String(r.created_by || '').toLowerCase();
+                if (!cb.includes(activeColFilters.created_by.toLowerCase())) return false;
+            }
+            if (activeColFilters.currency) {
+                const cur = String(r.currency || '').toLowerCase();
+                if (!cur.includes(activeColFilters.currency.toLowerCase())) return false;
             }
             if (activeColFilters.date) {
                 const dt = String(r.date || '');
@@ -3417,10 +3900,13 @@
             document.querySelectorAll('.col-filter-input').forEach(inp => inp.value = '');
             document.querySelectorAll('.col-filter-select').forEach(sel => sel.value = '');
             activeColFilters = {
-                sales_order: '',
+                quotation: '',
                 line_item: '',
                 material: '',
-                plant: '',
+                item_category: '',
+                customer: '',
+                customer_ref: '',
+                sales_order: '',
                 date: '',
                 qty: '',
                 net_amount: '',
@@ -3445,7 +3931,7 @@
         loading = true;
         showLoadingBar(true);
         showSalesLoader(true, { launch: !lastPayload });
-        if (tbody) tbody.innerHTML = emptyRowHtml('Loading sales…', 'Fetching live SAP order lines.');
+        if (tbody) tbody.innerHTML = emptyRowHtml('Loading quotations…', 'Calling ZI_QuotationSalesOrder_HUB.');
 
         const queryTerm = getDashboardSearchTerm();
         setDashboardSearchTerm(queryTerm);
@@ -3461,6 +3947,9 @@
             to: currentTo,
             _: String(Date.now()),
         });
+        if (/^(?:(?:so|qt|quo(?:tation)?)\s*#?\s*)?\d{1,10}$/i.test(queryTerm.trim())) {
+            params.set('quotation', queryTerm.trim().replace(/^(?:(?:so|qt|quo(?:tation)?)\s*#?\s*)/i, ''));
+        }
 
         try {
             console.log('[Sales] Calling SAP API live:', `${cfg.apiUrl}?${params.toString()}`);
@@ -3493,6 +3982,7 @@
             lastPayload = data;
             currentPage = data.page || page;
             currentRawRecords = data.records || [];
+            soDetailLines = data.detail_lines || result.detail_lines || {};
             populatePlantOptions(currentRawRecords);
             applyFiltersAndSort();
             updateKpis(data.summary);
@@ -3506,10 +3996,10 @@
                 if (queryTerm) {
                     activeFilterBanner.style.display = 'flex';
                     if (activeFilterText) {
-                        const isNumericSo = /^(?:so\s*#?\s*)?\d+$/i.test(queryTerm);
-                        const cleanSo = queryTerm.replace(/^(?:so\s*#?\s*)/i, '');
+                        const isNumericSo = /^(?:(?:so|qt|quo(?:tation)?)\s*#?\s*)?\d+$/i.test(queryTerm);
+                        const cleanSo = queryTerm.replace(/^(?:(?:so|qt|quo(?:tation)?)\s*#?\s*)/i, '');
                         activeFilterText.textContent = isNumericSo
-                            ? `Sales Order #${cleanSo} (${data.total || 0} line${(data.total || 0) === 1 ? '' : 's'})`
+                            ? `Quotation / Sales Order #${cleanSo} (${data.total || 0} line${(data.total || 0) === 1 ? '' : 's'})`
                             : `"${queryTerm}" (${data.total || 0} result${(data.total || 0) === 1 ? '' : 's'})`;
                     }
                 } else {
@@ -3541,12 +4031,12 @@
     }
 
     function recordsToCsv(records) {
-        const header = ['Sales Order', 'Line', 'Material', 'Plant', 'Division', 'Date', 'Qty', 'Net Amount', 'Status', 'Category'];
+        const header = ['Quotation', 'Item', 'Material', 'Description', 'Plant', 'Date', 'Qty', 'Net Value', 'Sales Order', 'Category', 'Customer'];
         const lines = [header.join(',')];
         (records || []).forEach((r) => {
             lines.push([
-                r.sales_order, r.line_item, r.material, r.plant, r.division,
-                r.date, r.qty, r.net_amount, r.status, r.item_category,
+                r.quotation, r.line_item, r.material, r.style, r.plant,
+                r.date, r.qty, r.net_amount, r.sales_order, r.item_category, r.customer,
             ].map(csvEscape).join(','));
         });
         return lines.join('\r\n');
@@ -3693,7 +4183,7 @@
     ========================================================================= */
     let currentProcData = [];
     let currentProcRawPayload = null;
-    let currentProcSalesDoc = '4203';
+    let currentProcSalesDoc = '';
     let activeProcGroupFilter = 'all';
 
     /*
@@ -3709,9 +4199,9 @@
         return '';
     }
 
-    function openProcurementModal(salesDoc = '4203') {
+    function openProcurementModal(salesDoc = '') {
         if (!procModal) return;
-        currentProcSalesDoc = String(salesDoc || '4203').trim();
+        currentProcSalesDoc = String(salesDoc || currentDrawerRecord?.sales_order || '').trim();
         if (procSalesDocLabel) procSalesDocLabel.textContent = currentProcSalesDoc;
         if (procHeaderMaterial) procHeaderMaterial.textContent = '…';
         if (procHeaderDesc) procHeaderDesc.textContent = 'Connecting to SAP…';
@@ -3757,8 +4247,9 @@
         }, 320);
     }
 
-    async function loadProcurementData(salesDoc = '4203') {
-        const cleanDoc = String(salesDoc || currentProcSalesDoc || '4203').trim();
+    async function loadProcurementData(salesDoc = '') {
+        const cleanDoc = String(salesDoc || currentProcSalesDoc || currentDrawerRecord?.sales_order || '').trim();
+        if (!cleanDoc) return;
         currentProcSalesDoc = cleanDoc;
         if (procSalesDocLabel) procSalesDocLabel.textContent = cleanDoc;
         if (procReloadBtn) procReloadBtn.classList.add('is-loading');
@@ -4060,8 +4551,8 @@
 
     // Bind Procurement UI events
     procCard?.addEventListener('click', () => {
-        const defaultDoc = currentProcSalesDoc || (lastPayload?.records && lastPayload.records[0]?.sales_order) || '4480';
-        openProcurementModal(defaultDoc);
+        const defaultDoc = currentDrawerRecord?.sales_order || (lastPayload?.records && lastPayload.records[0]?.sales_order) || '';
+        if (defaultDoc) openProcurementModal(defaultDoc);
     });
     procCloseBtn?.addEventListener('click', closeProcurementModal);
     procBackdrop?.addEventListener('click', closeProcurementModal);

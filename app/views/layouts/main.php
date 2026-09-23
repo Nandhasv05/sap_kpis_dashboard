@@ -81,7 +81,7 @@ $logoUrl = asset('assets/logo.png');
             <div class="header-so-search" id="headerSoSearch">
                 <div class="header-so-search-wrap" id="headerSoSearchWrap">
                     <span class="material-icons-round header-search-ico">search</span>
-                    <input type="search" id="headerSoSearchInput" placeholder="Search sales order…" autocomplete="off" aria-label="Search sales order">
+                    <input type="search" id="headerSoSearchInput" placeholder="Search quotation or sales order…" autocomplete="off" aria-label="Search quotation or sales order">
                     <button type="button" class="header-search-clear" id="headerSoSearchClear" hidden aria-label="Clear sales order search">
                         <span class="material-icons-round">close</span>
                     </button>

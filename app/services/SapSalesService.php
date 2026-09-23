@@ -71,71 +71,68 @@ class SapSalesService
         @ini_set('memory_limit', '512M');
         @set_time_limit(45);
 
-        // Check if explicit sales_order parameter or if search/q looks like a SalesOrder (e.g. 3239, 0000003239, SO 3239)
-        $soSearch = null;
-        $rawSearch = trim((string) ($filters['sales_order'] ?? $filters['so'] ?? $search));
-        if (preg_match('/^(?:so\s*#?\s*)?(\d{1,10})$/i', $rawSearch, $m)) {
+        $idSearch = null;
+        $rawSearch = trim((string) ($filters['quotation'] ?? $filters['sales_order'] ?? $filters['so'] ?? $search));
+        if (preg_match('/^(?:(?:so|qt|quo(?:tation)?)\s*#?\s*)?(\d{1,10})$/i', $rawSearch, $m)) {
             $orderDigits = $m[1];
-            $soSearch = [
-                'raw'    => ltrim($orderDigits, '0'),
+            $rawId = ltrim($orderDigits, '0');
+            $idSearch = [
+                'raw'    => $rawId === '' ? '0' : $rawId,
                 'padded' => str_pad($orderDigits, 10, '0', STR_PAD_LEFT),
             ];
         }
 
-        if ($soSearch !== null) {
-            // Targeted query for specific sales order directly from SAP CDS view (executes in < 0.5s)
-            $filterExpr = sprintf(
-                "SalesOrder eq '%s' or SalesOrder eq '%s'",
-                $soSearch['padded'],
-                $soSearch['raw']
-            );
-        } else {
-            // Default to current week window if not specified for fast live response
-            if ($from === '' && $to === '') {
-                $now = new DateTime();
-                $dayOfWeek = (int) $now->format('N');
-                $from = (clone $now)->modify('-' . ($dayOfWeek - 1) . ' days')->format('Y-m-d');
-                $to = (clone $now)->modify('+' . (7 - $dayOfWeek) . ' days')->format('Y-m-d');
-            } elseif ($from === '' && $to !== '') {
-                $from = date('Y-m-01', strtotime($to));
-            } elseif ($from !== '' && $to === '') {
-                $to = date('Y-m-d', strtotime($from . ' +6 days'));
-            }
-
-            $filterExpr = sprintf(
-                "CreationDate ge datetime'%sT00:00:00' and CreationDate le datetime'%sT23:59:59'",
-                $from,
-                $to
-            );
+        if ($from === '' && $to === '') {
+            $now = new DateTime();
+            $dayOfWeek = (int) $now->format('N');
+            $from = (clone $now)->modify('-' . ($dayOfWeek - 1) . ' days')->format('Y-m-d');
+            $to = (clone $now)->modify('+' . (7 - $dayOfWeek) . ' days')->format('Y-m-d');
+        } elseif ($from === '' && $to !== '') {
+            $from = date('Y-m-01', strtotime($to));
+        } elseif ($from !== '' && $to === '') {
+            $to = date('Y-m-d', strtotime($from . ' +6 days'));
         }
 
-        $state = $this->createState($year);
         $sapError = null;
+        $quoteRows = [];
+        $quoteMeta = [
+            'count'        => 0,
+            'sales_orders' => [],
+            'quotation'    => $idSearch['raw'] ?? '',
+        ];
 
         try {
-            $queryResult = $this->client->eachPage(function (array $batch) use (&$state, $year): void {
-                foreach ($batch as $row) {
-                    if (is_array($row)) {
-                        $this->ingestRow($row, $state, $year);
+            $quoteResult = $this->fetchQuotationHub($idSearch, $from, $to);
+            $quoteRows = $quoteResult['rows'] ?? [];
+            $sapError = $quoteResult['error'] ?? null;
+            $salesOrders = [];
+            foreach ($quoteRows as $row) {
+                foreach (['SalesOrder', 'FollowOnDocument'] as $key) {
+                    $val = ltrim(trim((string) ($row[$key] ?? '')), '0');
+                    if ($val !== '') {
+                        $salesOrders[$val] = true;
                     }
                 }
-            }, [
-                '$filter'  => $filterExpr,
-                '$orderby' => 'CreationDate desc',
-            ]);
-
-            if ($state['row_count'] === 0 && !empty($queryResult['error'])) {
-                $sapError = $queryResult['error'];
             }
+            $quoteMeta = [
+                'count'        => count($quoteRows),
+                'sales_orders' => array_keys($salesOrders),
+                'quotation'    => $idSearch['raw'] ?? '',
+            ];
         } catch (Throwable $e) {
             $sapError = $e->getMessage();
         }
 
-        $records = $state['records'] ?? [];
-        // When user searches for a specific sales order, do not filter out by date range
-        $filterFrom = $soSearch !== null ? '' : $from;
-        $filterTo = $soSearch !== null ? '' : $to;
-        $filtered = $this->filterRecords($records, $search, $filterFrom, $filterTo);
+        $records = [];
+        foreach ($quoteRows as $row) {
+            $mapped = $this->mapQuotationHubRow($row, $year);
+            if ($mapped !== null) {
+                $records[] = $mapped;
+            }
+        }
+
+        $textSearch = $idSearch !== null ? '' : $search;
+        $filtered = $this->filterRecords($records, $textSearch, '', '');
         unset($records);
 
         $total = count($filtered);
@@ -144,11 +141,34 @@ class SapSalesService
         $offset = ($page - 1) * $perPage;
         $slice = array_slice($filtered, $offset, $perPage);
 
+        $pageDetails = [];
+        foreach ($filtered as $r) {
+            if (!empty($r['is_header'])) {
+                continue;
+            }
+            $qKey = trim((string) ($r['quotation'] ?? ''));
+            $soKey = trim((string) ($r['sales_order'] ?? ''));
+            if ($qKey !== '' && $qKey !== '—') {
+                if (!isset($pageDetails[$qKey])) {
+                    $pageDetails[$qKey] = [];
+                }
+                $pageDetails[$qKey][] = $r;
+            }
+            if ($soKey !== '' && $soKey !== '—') {
+                if (!isset($pageDetails[$soKey])) {
+                    $pageDetails[$soKey] = [];
+                }
+                $pageDetails[$soKey][] = $r;
+            }
+        }
+        if ($pageDetails === []) {
+            $pageDetails = new \stdClass();
+        }
+
         $net = 0.0;
         $cost = 0.0;
         $qty = 0.0;
         $returnQty = 0.0;
-        $orderSet = [];
         foreach ($filtered as $r) {
             $net += (float) ($r['net_amount'] ?? 0);
             $cost += (float) ($r['cost'] ?? 0);
@@ -157,16 +177,12 @@ class SapSalesService
             if (!empty($r['is_return'])) {
                 $returnQty += $lineQty;
             }
-            $orderNo = (string) ($r['sales_order'] ?? '');
-            if ($orderNo !== '' && $orderNo !== '—') {
-                $orderSet[$orderNo] = true;
-            }
         }
-        $orders = count($orderSet);
+        $orders = $total;
         $materials = count(array_unique(array_filter(array_map(
-            static fn($r) => (string) ($r['material'] ?? ''),
+            static fn($r) => (string) ($r['customer'] ?? ''),
             $filtered
-        ))));
+        ), static fn($m) => $m !== '' && $m !== '—')));
 
         $summary = [
             'net_sales'    => round($net, 2),
@@ -198,9 +214,11 @@ class SapSalesService
                 'meta'    => [
                     'source' => 'SAP',
                     'count'  => 0,
+                    'quotation_hub' => $quoteMeta,
                 ],
                 'data'    => [
                     'records' => [],
+                    'detail_lines' => new \stdClass(),
                     'total'   => 0,
                     'page'    => 1,
                     'pages'   => 1,
@@ -210,6 +228,7 @@ class SapSalesService
                     'meta'    => [
                         'source' => 'SAP',
                         'count'  => 0,
+                        'quotation_hub' => $quoteMeta,
                     ],
                 ],
             ];
@@ -220,6 +239,7 @@ class SapSalesService
             'success'  => true,
             'message'  => 'Sales data fetched successfully',
             'records'  => $slice,
+            'detail_lines' => $pageDetails,
             'total'    => $total,
             'page'     => $page,
             'pages'    => $pages,
@@ -229,9 +249,11 @@ class SapSalesService
             'meta'     => [
                 'source' => 'SAP',
                 'count'  => $total,
+                'quotation_hub' => $quoteMeta,
             ],
             'data'     => [
                 'records'  => $slice,
+                'detail_lines' => $pageDetails,
                 'total'    => $total,
                 'page'     => $page,
                 'pages'    => $pages,
@@ -241,6 +263,7 @@ class SapSalesService
                 'meta'     => [
                     'source' => 'SAP',
                     'count'  => $total,
+                    'quotation_hub' => $quoteMeta,
                 ],
             ],
         ];
@@ -311,12 +334,14 @@ class SapSalesService
 
         foreach ($filtered as $r) {
             $amount = (float) ($r['net_amount'] ?? 0);
+            $qtyVal = (float) ($r['qty'] ?? 0);
+            $weight = abs($amount) > 0.0000001 ? $amount : $qtyVal;
             $cost = (float) ($r['cost'] ?? 0);
             $dateKey = !empty($r['date_iso']) ? $r['date_iso'] : 'N/A';
-            $byDate[$dateKey] = ($byDate[$dateKey] ?? 0) + $amount;
+            $byDate[$dateKey] = ($byDate[$dateKey] ?? 0) + $weight;
 
             $div = (string) ($r['division'] ?? 'General');
-            $byDivision[$div] = ($byDivision[$div] ?? 0) + $amount;
+            $byDivision[$div] = ($byDivision[$div] ?? 0) + $weight;
 
             $style = (string) ($r['material'] ?? $r['style'] ?? 'Unknown');
             if ($style === '' || $style === '—') {
@@ -325,10 +350,10 @@ class SapSalesService
             if (strlen($style) > 28) {
                 $style = substr($style, 0, 26) . '…';
             }
-            $byStyle[$style] = ($byStyle[$style] ?? 0) + $amount;
+            $byStyle[$style] = ($byStyle[$style] ?? 0) + $weight;
 
             $ch = (string) ($r['channel'] ?? 'Direct');
-            $byChannel[$ch] = ($byChannel[$ch] ?? 0) + $amount;
+            $byChannel[$ch] = ($byChannel[$ch] ?? 0) + $weight;
 
             $cat = trim((string) ($r['item_category'] ?? ''));
             if ($cat === '' || $cat === '—') {
@@ -337,22 +362,22 @@ class SapSalesService
             if ($cat === '' || $cat === '—') {
                 $cat = 'Other';
             }
-            $byCategory[$cat] = ($byCategory[$cat] ?? 0) + $amount;
+            $byCategory[$cat] = ($byCategory[$cat] ?? 0) + $weight;
 
             $plant = trim((string) ($r['plant'] ?? ''));
             if ($plant !== '' && $plant !== '—') {
-                $byPlant[$plant] = ($byPlant[$plant] ?? 0) + $amount;
+                $byPlant[$plant] = ($byPlant[$plant] ?? 0) + $weight;
             }
 
             $st = trim((string) ($r['status'] ?? 'Open'));
             if ($st === '') {
                 $st = 'Open';
             }
-            $byStatus[$st] = ($byStatus[$st] ?? 0) + $amount;
+            $byStatus[$st] = ($byStatus[$st] ?? 0) + $weight;
 
             $orderNo = trim((string) ($r['sales_order'] ?? ''));
             if ($orderNo !== '' && $orderNo !== '—') {
-                $byOrder['SO ' . $orderNo] = ($byOrder['SO ' . $orderNo] ?? 0) + $amount;
+                $byOrder['SO ' . $orderNo] = ($byOrder['SO ' . $orderNo] ?? 0) + $weight;
             }
 
             $cust = trim((string) ($r['customer_ref'] ?? ''));
@@ -360,12 +385,12 @@ class SapSalesService
                 if (strlen($cust) > 22) {
                     $cust = substr($cust, 0, 20) . '…';
                 }
-                $byCustomer[$cust] = ($byCustomer[$cust] ?? 0) + $amount;
+                $byCustomer[$cust] = ($byCustomer[$cust] ?? 0) + $weight;
             }
 
             $creator = trim((string) ($r['created_by'] ?? ''));
             if ($creator !== '' && $creator !== '—') {
-                $byCreator[$creator] = ($byCreator[$creator] ?? 0) + $amount;
+                $byCreator[$creator] = ($byCreator[$creator] ?? 0) + $weight;
             }
 
             $costSum += max(0, $cost);
@@ -574,6 +599,7 @@ class SapSalesService
             }
 
             $hay = strtolower(implode(' ', [
+                $r['quotation'] ?? '',
                 $r['sales_order'] ?? '',
                 $r['line_item'] ?? '',
                 $r['style'] ?? '',
@@ -582,6 +608,7 @@ class SapSalesService
                 $r['shipping_point'] ?? '',
                 $r['material_group'] ?? '',
                 $r['division'] ?? '',
+                $r['customer'] ?? '',
                 $r['customer_ref'] ?? '',
                 $r['channel'] ?? '',
                 $r['status'] ?? '',
@@ -591,6 +618,11 @@ class SapSalesService
 
             return str_contains($hay, $search) || ($digits !== '' && str_contains($hay, $digits));
         }));
+    }
+
+    private function isTagCategory(array $row): bool
+    {
+        return strtoupper(trim((string) ($row['item_category'] ?? ''))) === 'TAG';
     }
 
     private function createState(int $year): array
@@ -1219,6 +1251,309 @@ class SapSalesService
             return new DateTime($value);
         } catch (Exception $e) {
             return null;
+        }
+    }
+
+    /**
+     * Call ZI_QuotationSalesOrder_HUB (quotation first).
+     */
+    private function fetchQuotationHub(?array $idSearch, string $from, string $to): array
+    {
+        $service = (string) ($this->cfg['quotation_service']
+            ?? '/sap/opu/odata/sap/ZI_QUOTATIONSALESORDER_HUB_CDS/ZI_QuotationSalesOrder_HUB');
+
+        if ($idSearch !== null) {
+            $raw = str_replace("'", "''", (string) $idSearch['raw']);
+            $padded = str_replace("'", "''", (string) $idSearch['padded']);
+            $padded8 = str_replace("'", "''", str_pad((string) $idSearch['raw'], 8, '0', STR_PAD_LEFT));
+            if (strlen((string) $idSearch['raw']) >= 8) {
+                $filter = "Quotation eq '{$raw}' or Quotation eq '{$padded8}' or Quotation eq '{$padded}'";
+            } else {
+                $filter = "SalesOrder eq '{$raw}' or SalesOrder eq '{$padded}'"
+                    . " or FollowOnDocument eq '{$raw}' or FollowOnDocument eq '{$padded}'";
+            }
+        } else {
+            $filter = sprintf(
+                "(SalesOrderDate ge datetime'%sT00:00:00' and SalesOrderDate le datetime'%sT23:59:59')"
+                . " or (QuotationDate ge datetime'%sT00:00:00' and QuotationDate le datetime'%sT23:59:59')",
+                $from,
+                $to,
+                $from,
+                $to
+            );
+        }
+
+        $rows = [];
+        $result = $this->client->eachPage(function (array $batch) use (&$rows): void {
+            foreach ($batch as $row) {
+                if (is_array($row)) {
+                    $rows[] = $row;
+                }
+            }
+        }, [
+            '$filter' => $filter,
+        ], $service);
+
+        return [
+            'rows'  => $rows,
+            'error' => $rows === [] ? ($result['error'] ?? null) : null,
+        ];
+    }
+
+    /**
+     * Map quotation hub entity. Header item 000000 is kept for the table.
+     */
+    private function mapQuotationHubRow(array $row, int $year): ?array
+    {
+        $item = trim((string) ($row['QuotationItem'] ?? ''));
+        $material = trim((string) ($row['QuotationMaterial'] ?? ''));
+        $isHeader = ($item === '' || $item === '000000') && $material === '';
+
+        $quotation = ltrim(trim((string) ($row['Quotation'] ?? '')), '0');
+        $so = ltrim(trim((string) ($row['FollowOnDocument'] ?? '')), '0');
+        if ($so === '') {
+            $so = ltrim(trim((string) ($row['SalesOrder'] ?? '')), '0');
+        }
+        $desc = trim((string) ($row['QuotationMaterialDescription'] ?? ''));
+        $quoteDate = $this->parseDate($row['QuotationDate'] ?? null);
+        $soDate = $this->parseDate($row['SalesOrderDate'] ?? null);
+        $validFrom = $this->parseDate($row['ValidFromDate'] ?? null);
+        $validTo = $this->parseDate($row['ValidToDate'] ?? null);
+        $reqDate = $this->parseDate($row['RequestedDeliveryDate'] ?? null);
+        $createdDate = $this->parseDate($row['CreatedDate'] ?? null);
+        $qty = $this->number($row['QuotationQuantity'] ?? 0);
+        $net = $this->number($row['QuotationNetValue'] ?? 0);
+        $plant = trim((string) ($row['QuotationPlant'] ?? ''));
+        $category = trim((string) ($row['QuotationItemCategory'] ?? ''));
+        $customerRef = trim((string) ($row['CustomerReference'] ?? ''));
+        $customer = trim((string) ($row['Customer'] ?? ''));
+        $quoteType = trim((string) ($row['QuotationType'] ?? ''));
+        $createdBy = trim((string) ($row['CreatedBy'] ?? ''));
+
+        return [
+            'id'               => ($quotation !== '' ? $quotation : 'QT') . '-' . ($item !== '' ? $item : '000000'),
+            'quotation'        => $quotation !== '' ? $quotation : '—',
+            'sales_order'      => $so !== '' ? $so : '—',
+            'line_item'        => ltrim($item, '0') ?: '0',
+            'material'         => $material !== '' ? $material : '—',
+            'style'            => $desc !== '' ? $desc : ($customerRef !== '' ? $customerRef : '—'),
+            'material_group'   => $desc,
+            'plant'            => $plant !== '' ? $plant : '—',
+            'date'             => $quoteDate ? $quoteDate->format('Y-m-d') : '',
+            'date_iso'         => $quoteDate ? $quoteDate->format('Y-m-d') : '',
+            'sales_order_date' => $soDate ? $soDate->format('Y-m-d') : '',
+            'valid_from'       => $validFrom ? $validFrom->format('Y-m-d') : '',
+            'valid_to'         => $validTo ? $validTo->format('Y-m-d') : '',
+            'requested_delivery_date' => $reqDate ? $reqDate->format('Y-m-d') : '',
+            'created_date'     => $createdDate ? $createdDate->format('Y-m-d') : '',
+            'qty'              => $qty,
+            'net_amount'       => $net,
+            'item_category'    => $category,
+            'customer'         => $customer,
+            'customer_ref'     => $customerRef,
+            'division'         => $customer !== '' ? $customer : trim((string) ($row['Division'] ?? '')),
+            'channel'          => $quoteType !== '' ? $quoteType : trim((string) ($row['DistributionChannel'] ?? '')),
+            'created_by'       => $createdBy,
+            'quotation_type'   => $quoteType,
+            'sales_order_type' => trim((string) ($row['SalesOrderType'] ?? '')),
+            'sales_org'        => trim((string) ($row['SalesOrganization'] ?? '')),
+            'dist_channel'     => trim((string) ($row['DistributionChannel'] ?? '')),
+            'unit'             => trim((string) ($row['QuotationSalesUnit'] ?? '')),
+            'currency'         => trim((string) ($row['QuotationCurrency'] ?? 'USD')),
+            'status'           => 'Active',
+            'is_header'        => $isHeader,
+            'is_return'        => false,
+            'cost'             => 0,
+            'year'             => $year,
+        ];
+    }
+
+    /**
+     * One table row per quotation header, with item qty/net rolled up.
+     *
+     * @return array{0: array<int, array>, 1: array<string, array>}
+     */
+    private function buildQuotationHeaderRecords(array $mappedRows): array
+    {
+        $groups = [];
+        foreach ($mappedRows as $r) {
+            $key = trim((string) ($r['quotation'] ?? ''));
+            if ($key === '' || $key === '—') {
+                continue;
+            }
+            if (!isset($groups[$key])) {
+                $groups[$key] = [
+                    'header' => null,
+                    'items'  => [],
+                    'qty'    => 0.0,
+                    'net'    => 0.0,
+                ];
+            }
+            if (!empty($r['is_header'])) {
+                $groups[$key]['header'] = $r;
+                continue;
+            }
+            $groups[$key]['items'][] = $r;
+            $groups[$key]['qty'] += (float) ($r['qty'] ?? 0);
+            $groups[$key]['net'] += (float) ($r['net_amount'] ?? 0);
+        }
+
+        $headers = [];
+        $details = [];
+        foreach ($groups as $key => $g) {
+            $header = $g['header'];
+            if ($header === null && $g['items'] !== []) {
+                $header = $g['items'][0];
+                $header['is_header'] = true;
+            }
+            if ($header === null) {
+                continue;
+            }
+            $header['id'] = $key;
+            $header['qty'] = $g['qty'];
+            $header['net_amount'] = round($g['net'], 2);
+            $header['item_count'] = count($g['items']);
+            $headers[] = $header;
+            $details[$key] = $g['items'];
+        }
+
+        return [$headers, $details];
+    }
+
+    /**
+     * First SAP hop: quotation hub → unique follow-on sales orders.
+     */
+    private function resolveSalesOrdersFromQuotations(?array $idSearch, string $from, string $to): array
+    {
+        $service = (string) ($this->cfg['quotation_service']
+            ?? '/sap/opu/odata/sap/ZI_QUOTATIONSALESORDER_HUB_CDS/ZI_QuotationSalesOrder_HUB');
+
+        if ($idSearch !== null) {
+            $vals = array_unique(array_filter([
+                $idSearch['raw'],
+                $idSearch['padded'],
+                str_pad((string) $idSearch['raw'], 8, '0', STR_PAD_LEFT),
+            ]));
+            $parts = [];
+            foreach ($vals as $v) {
+                $v = str_replace("'", "''", (string) $v);
+                $parts[] = "Quotation eq '{$v}'";
+                $parts[] = "SalesOrder eq '{$v}'";
+                $parts[] = "FollowOnDocument eq '{$v}'";
+            }
+            $filter = implode(' or ', $parts);
+        } else {
+            $filter = sprintf(
+                "(SalesOrderDate ge datetime'%sT00:00:00' and SalesOrderDate le datetime'%sT23:59:59')"
+                . " or (QuotationDate ge datetime'%sT00:00:00' and QuotationDate le datetime'%sT23:59:59')",
+                $from,
+                $to,
+                $from,
+                $to
+            );
+        }
+
+        $rows = [];
+        $result = $this->client->eachPage(function (array $batch) use (&$rows): void {
+            foreach ($batch as $row) {
+                if (is_array($row)) {
+                    $rows[] = $row;
+                }
+            }
+        }, [
+            '$filter' => $filter,
+        ], $service);
+
+        $orders = [];
+        foreach ($rows as $row) {
+            foreach (['SalesOrder', 'FollowOnDocument'] as $key) {
+                $val = ltrim(trim((string) ($row[$key] ?? '')), '0');
+                if ($val !== '') {
+                    $orders[$val] = true;
+                }
+            }
+        }
+
+        return [
+            'row_count'     => count($rows),
+            'sales_orders'  => array_keys($orders),
+            'error'         => $orders === [] ? ($result['error'] ?? null) : null,
+        ];
+    }
+
+    /**
+     * Second SAP hop: ZI_SalesApi_HUB for the resolved sales orders.
+     */
+    private function fetchSalesOrdersIntoState(array $salesOrders, array &$state, int $year, ?string &$sapError): void
+    {
+        foreach (array_chunk($salesOrders, 20) as $chunk) {
+            $parts = [];
+            foreach ($chunk as $so) {
+                $raw = ltrim((string) $so, '0');
+                if ($raw === '') {
+                    continue;
+                }
+                $padded = str_pad($raw, 10, '0', STR_PAD_LEFT);
+                $rawEsc = str_replace("'", "''", $raw);
+                $padEsc = str_replace("'", "''", $padded);
+                $parts[] = "SalesOrder eq '{$padEsc}'";
+                if ($rawEsc !== $padEsc) {
+                    $parts[] = "SalesOrder eq '{$rawEsc}'";
+                }
+            }
+            if ($parts === []) {
+                continue;
+            }
+
+            $queryResult = $this->client->eachPage(function (array $batch) use (&$state, $year): void {
+                foreach ($batch as $row) {
+                    if (is_array($row)) {
+                        $this->ingestRow($row, $state, $year);
+                    }
+                }
+            }, [
+                '$filter'  => implode(' or ', $parts),
+                '$orderby' => 'CreationDate desc',
+            ]);
+
+            if (($state['row_count'] ?? 0) === 0 && !empty($queryResult['error'])) {
+                $sapError = (string) $queryResult['error'];
+            }
+        }
+    }
+
+    /**
+     * Fallback when quotation hub has no match or is unavailable.
+     */
+    private function fetchSalesFallback(?array $idSearch, string $from, string $to, array &$state, int $year, ?string &$sapError): void
+    {
+        if ($idSearch !== null) {
+            $filterExpr = sprintf(
+                "SalesOrder eq '%s' or SalesOrder eq '%s'",
+                str_replace("'", "''", (string) $idSearch['padded']),
+                str_replace("'", "''", (string) $idSearch['raw'])
+            );
+        } else {
+            $filterExpr = sprintf(
+                "CreationDate ge datetime'%sT00:00:00' and CreationDate le datetime'%sT23:59:59'",
+                $from,
+                $to
+            );
+        }
+
+        $queryResult = $this->client->eachPage(function (array $batch) use (&$state, $year): void {
+            foreach ($batch as $row) {
+                if (is_array($row)) {
+                    $this->ingestRow($row, $state, $year);
+                }
+            }
+        }, [
+            '$filter'  => $filterExpr,
+            '$orderby' => 'CreationDate desc',
+        ]);
+
+        if (($state['row_count'] ?? 0) === 0 && !empty($queryResult['error']) && $sapError === null) {
+            $sapError = (string) $queryResult['error'];
         }
     }
 }

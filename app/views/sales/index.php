@@ -36,6 +36,7 @@ window.SALES_PAGE = {
 $extraScripts = ob_get_clean();
 ?>
 
+<!-- Sales Hub -->
 <section class="sales-hub is-loading" id="salesHub">
     <div class="sales-loader is-on" id="salesLoader" role="status" aria-live="polite">
         <div class="sales-loader-panel">
@@ -43,8 +44,8 @@ $extraScripts = ob_get_clean();
                 <span class="sales-spinner-ring sales-spinner-ring--outer"></span>
                 <span class="sales-spinner-ring sales-spinner-ring--inner"></span>
             </div>
-            <strong>Loading SAP sales</strong>
-            <span class="sales-loader-hint" id="salesLoaderNote">Fetching order lines from SAP…</span>
+            <strong>Loading SAP quotations</strong>
+            <span class="sales-loader-hint" id="salesLoaderNote">Fetching quotations from SAP…</span>
         </div>
     </div>
     <script>
@@ -75,12 +76,12 @@ $extraScripts = ob_get_clean();
         <div class="kpi-card proj-card tone-sky" role="button" tabindex="0" data-kpi="net" title="Total Net Sales">
             <div class="kpi-icon"><span class="material-icons-round">payments</span></div>
             <div class="kpi-info">
-                <div class="label">Net Sales</div>
+                <div class="label">Quotation Value</div>
                 <div class="kpi-value-row">
                     <div class="value" id="skNet">—</div>
                     <!-- <span class="kpi-delta" id="skNetDelta" hidden></span> -->
                 </div>
-                <div class="change" id="skNetNote">Filtered net amount</div>
+                <div class="change" id="skNetNote">Quotation net value</div>
             </div>
             <div class="kpi-spark" id="skNetSpark" aria-hidden="true">
                 <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
@@ -91,12 +92,12 @@ $extraScripts = ob_get_clean();
         <div class="kpi-card proj-card tone-mint" role="button" tabindex="0" data-kpi="qty" title="Total Order Quantity">
             <div class="kpi-icon"><span class="material-icons-round">inventory_2</span></div>
             <div class="kpi-info">
-                <div class="label">Order Quantity</div>
+                <div class="label">Quotation Qty</div>
                 <div class="kpi-value-row">
                     <div class="value" id="skQty">—</div>
                     <!-- <span class="kpi-delta" id="skQtyDelta" hidden></span> -->
                 </div>
-                <div class="change">Units in selected period</div>
+                <div class="change">Quoted quantity</div>
             </div>
             <div class="kpi-spark" id="skQtySpark" aria-hidden="true">
                 <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
@@ -107,12 +108,12 @@ $extraScripts = ob_get_clean();
         <div class="kpi-card proj-card tone-amber" role="button" tabindex="0" data-kpi="orders" title="Total Sales Orders (Click to search in table)">
             <div class="kpi-icon"><span class="material-icons-round">shopping_bag</span></div>
             <div class="kpi-info">
-                <div class="label">Orders</div>
+                <div class="label">Quotations</div>
                 <div class="kpi-value-row">
                     <div class="value" id="skOrders">—</div>
                     <!-- <span class="kpi-delta" id="skOrdersDelta" hidden></span> -->
                 </div>
-                <div class="change">Distinct orders</div>
+                <div class="change">Total records</div>
             </div>
             <div class="kpi-spark" id="skOrdersSpark" aria-hidden="true">
                 <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
@@ -126,8 +127,8 @@ $extraScripts = ob_get_clean();
                 <div class="chart-head-left">
                     <span class="chart-panel-icon"><span class="material-icons-round">show_chart</span></span>
                     <div>
-                        <h2>Net Sales Trend</h2>
-                        <p>Daily net amount</p>
+                        <h2>Quotation Trend</h2>
+                        <p>Net value by quotation date</p>
                     </div>
                 </div>
                 <div class="chart-header-badge trend-badge" id="trendBadge">
@@ -142,13 +143,9 @@ $extraScripts = ob_get_clean();
                 <div class="chart-head-left">
                     <span class="chart-panel-icon"><span class="material-icons-round">pie_chart</span></span>
                     <div>
-                        <h2 id="salesMixTitle">Plant Mix</h2>
-                        <p id="salesMixSubtitle">Click a slice to filter</p>
+                        <h2 id="salesMixTitle">Customer Mix</h2>
+                        <p id="salesMixSubtitle">Net value by customer</p>
                     </div>
-                </div>
-                <div class="chart-header-badge mix-badge" id="mixBadge">
-                    <span class="kpi-pulse-dot amber"></span>
-                    <span id="mixActiveStat">Interactive</span>
                 </div>
             </div>
             <div class="chart-wrap tall chart-wrap-donut">
@@ -164,22 +161,22 @@ $extraScripts = ob_get_clean();
         <div class="sales-table-head">
             <div class="sales-table-head-left">
                 <div class="sales-table-title">
-                    <h2>Order Lines</h2>
+                    <h2>Quotations</h2>
                 </div>
                 <span class="sales-count-badge" id="salesTableCountBadge">
-                    <span class="sales-count-num" id="salesTableCount">—</span> lines
+                    <span class="sales-count-num" id="salesTableCount">—</span> Total Records
                 </span>
             </div>
             <div class="sales-table-head-right">
                 <div class="sales-table-search">
                     <div class="sales-search-wrap">
                         <span class="material-icons-round search-icon">search</span>
-                        <input type="search" id="salesSearch" placeholder="Search order, material, plant, status…" autocomplete="off">
+                        <input type="search" id="salesSearch" placeholder="Search quotation or sales order…" autocomplete="off">
                         <button type="button" class="sales-search-clear" id="salesSearchClear" hidden aria-label="Clear search">
                             <span class="material-icons-round">close</span>
                         </button>
                         <button type="button" class="sales-search-btn" id="btnSalesSearchSubmit" title="Search">
-                            <span class="material-icons-round">arrow_forward</span>
+                            <span class="material-icons-round" style="color: white;">arrow_forward</span>
                         </button>
                     </div>
                 </div>
@@ -201,70 +198,70 @@ $extraScripts = ob_get_clean();
                 <thead>
                     <tr class="sales-th-row">
                         <th class="col-sno" style="width: 55px; text-align: center;">S.No</th>
-                        <th class="col-sortable" data-sort="sales_order" title="Click to sort by Sales Order">
-                            <span>Sales Order</span>
+                        <th class="col-sortable" data-sort="quotation" title="Click to sort by Quotation">
+                            <span>Quotation</span>
                             <span class="sort-icon material-icons-round">unfold_more</span>
                         </th>
-                        <th class="col-sortable" data-sort="line_item" title="Click to sort by Line">
-                            <span>Line</span>
+                        <th class="col-sortable" data-sort="line_item" title="Click to sort by Item">
+                            <span>Item</span>
                             <span class="sort-icon material-icons-round">unfold_more</span>
                         </th>
                         <th class="col-sortable" data-sort="material" title="Click to sort by Material">
                             <span>Material</span>
                             <span class="sort-icon material-icons-round">unfold_more</span>
                         </th>
-                        <th class="col-sortable" data-sort="plant" title="Click to sort by Plant">
-                            <span>Plant</span>
+                        <th class="col-sortable" data-sort="item_category" title="Click to sort by Category">
+                            <span>Category</span>
                             <span class="sort-icon material-icons-round">unfold_more</span>
                         </th>
-                        <th class="col-sortable" data-sort="date" title="Click to sort by Date">
-                            <span>Date</span>
+                        <th class="col-sortable" data-sort="customer" title="Click to sort by Customer">
+                            <span>Customer</span>
+                            <span class="sort-icon material-icons-round">unfold_more</span>
+                        </th>
+                        <th class="col-sortable" data-sort="customer_ref" title="Click to sort by Customer Reference">
+                            <span>Customer Reference</span>
+                            <span class="sort-icon material-icons-round">unfold_more</span>
+                        </th>
+                        <th class="col-sortable" data-sort="date" title="Click to sort by Quotation Date">
+                            <span>Quotation Date</span>
                             <span class="sort-icon material-icons-round">unfold_more</span>
                         </th>
                         <th class="col-sortable col-num" data-sort="qty" title="Click to sort by Quantity">
                             <span>Quantity</span>
                             <span class="sort-icon material-icons-round">unfold_more</span>
                         </th>
-                        <th class="col-sortable col-num" data-sort="net_amount" title="Click to sort by Net Amount">
-                            <span>Net Amount</span>
+                        <th class="col-sortable col-num" data-sort="net_amount" title="Click to sort by Net Value">
+                            <span>Net Value</span>
                             <span class="sort-icon material-icons-round">unfold_more</span>
                         </th>
-                        <th class="col-sortable" data-sort="status" title="Click to sort by Status">
-                            <span>Status</span>
+                        <th class="col-sortable" data-sort="sales_order" title="Click to sort by Sales Order">
+                            <span>Sales Order</span>
                             <span class="sort-icon material-icons-round">unfold_more</span>
                         </th>
-                        <th class="col-go" aria-hidden="true"></th>
                     </tr>
                     <tr class="sales-col-filter-row">
                         <th class="col-filter-th" style="text-align:center;"><span class="material-icons-round filter-header-icon" title="Column Filters">filter_alt</span></th>
-                        <th class="col-filter-th"><input type="text" class="col-filter-input" data-filter-col="sales_order" placeholder="Filter SO..."></th>
-                        <th class="col-filter-th"><input type="text" class="col-filter-input" data-filter-col="line_item" placeholder="Line..."></th>
+                        <th class="col-filter-th"><input type="text" class="col-filter-input" data-filter-col="quotation" placeholder="Quotation..."></th>
+                        <th class="col-filter-th"><input type="text" class="col-filter-input" data-filter-col="line_item" placeholder="Item..."></th>
                         <th class="col-filter-th"><input type="text" class="col-filter-input" data-filter-col="material" placeholder="Material..."></th>
-                        <th class="col-filter-th">
-                            <select class="col-filter-select" data-filter-col="plant" id="colFilterPlant">
-                                <option value="">All Plants</option>
-                            </select>
-                        </th>
+                        <th class="col-filter-th"><input type="text" class="col-filter-input" data-filter-col="item_category" placeholder="Cat..."></th>
+                        <th class="col-filter-th"><input type="text" class="col-filter-input" data-filter-col="customer" placeholder="Customer..."></th>
+                        <th class="col-filter-th"><input type="text" class="col-filter-input" data-filter-col="customer_ref" placeholder="Reference..."></th>
                         <th class="col-filter-th"><input type="text" class="col-filter-input" data-filter-col="date" placeholder="Date..."></th>
                         <th class="col-filter-th"><input type="text" class="col-filter-input col-num" data-filter-col="qty" placeholder="Min qty..."></th>
-                        <th class="col-filter-th"><input type="text" class="col-filter-input col-num" data-filter-col="net_amount" placeholder="Min amt..."></th>
                         <th class="col-filter-th">
-                            <select class="col-filter-select" data-filter-col="status" id="colFilterStatus">
-                                <option value="">All</option>
-                                <option value="active">Active</option>
-                                <option value="open">Open</option>
-                                <option value="complete">Complete</option>
-                            </select>
+                            <div class="col-filter-net-clear">
+                                <input type="text" class="col-filter-input col-num" data-filter-col="net_amount" placeholder="Min amt...">
+                                <button type="button" class="btn-clear-col-filters" id="btnClearColFilters" title="Clear all column filters">
+                                    <span class="material-icons-round">clear</span>
+                                </button>
+                            </div>
                         </th>
-                        <th class="col-filter-th" style="text-align:center;">
-                            <button type="button" class="btn-clear-col-filters" id="btnClearColFilters" title="Clear all column filters">
-                                <span class="material-icons-round">clear</span>
-                            </button>
-                        </th>
+                        <th class="col-filter-th"><input type="text" class="col-filter-input" data-filter-col="sales_order" placeholder="Filter SO..."></th>
                     </tr>
                 </thead>
                 <tbody id="salesTableBody">
-                    <tr><td colspan="10" class="empty-state">Loading…</td></tr>
+                    <tr><td colspan="11" class="empty-state">Loading…</td></tr>
                 </tbody>
             </table>
         </div>
@@ -294,28 +291,119 @@ $extraScripts = ob_get_clean();
     </div>
 </section>
 
+<!-- Sales Order Detail Drawer -->
 <div class="sales-detail-backdrop" id="salesDetailBackdrop" hidden></div>
 <aside class="sales-detail-drawer so-sheet" id="salesDetailDrawer" aria-hidden="true" role="dialog" aria-labelledby="salesDetailTitle">
-    <header class="sales-detail-head">
-        <div class="sales-detail-head-meta">
-            <div class="sales-detail-badges">
-                <span class="so-badge-pill"><span class="material-icons-round">receipt_long</span> SO # <strong id="salesDetailSoNum">—</strong></span>
-                <span class="so-badge-pill so-badge-line"><span class="material-icons-round">view_list</span> Line <strong id="salesDetailLineNum">—</strong></span>
-                <span class="so-badge-pill so-badge-plant"><span class="material-icons-round">factory</span> Plant <strong id="salesDetailPlantNum">—</strong></span>
-                <span class="sales-status-pill" id="salesDetailStatusPill">Active</span>
-                <span class="so-badge-pill so-badge-net"><span class="material-icons-round">payments</span> Net <strong id="salesDetailNetVal">—</strong></span>
-                <span class="so-badge-pill so-badge-qty"><span class="material-icons-round">inventory_2</span> Qty <strong id="salesDetailQtyVal">—</strong></span>
-                <span class="so-badge-pill so-badge-date"><span class="material-icons-round">event</span> Date <strong id="salesDetailDateVal">—</strong></span>
-            </div>
-            <h3 id="salesDetailTitle" class="sales-detail-title">—</h3>
-            <p class="sales-detail-sub" id="salesDetailSub">—</p>
-        </div>
-        <button type="button" class="icon-btn sales-drawer-close-btn" id="salesDetailClose" aria-label="Close details" title="Close">
-            <span class="material-icons-round">close</span>
-        </button>
-    </header>
+    <button type="button" class="icon-btn sales-drawer-close-btn so-sheet-close" id="salesDetailClose" aria-label="Close details" title="Close">
+        <span class="material-icons-round">close</span>
+    </button>
+    <span id="salesDetailQtNum" hidden>—</span>
+    <span id="salesDetailSoNum" hidden>—</span>
+    <span id="salesDetailPlantNum" hidden>—</span>
+    <span id="salesDetailStatusPill" hidden></span>
+    <span id="salesDetailDateVal" hidden>—</span>
+    <h3 id="salesDetailTitle" class="sales-detail-title" hidden>—</h3>
+    <p class="sales-detail-sub" id="salesDetailSub" hidden>—</p>
+    <span id="salesDetailLineNum" hidden>—</span>
+    <span id="salesDetailNetVal" hidden>—</span>
+    <span id="salesDetailQtyVal" hidden>—</span>
 
-    <nav class="sales-drawer-nav-cards" id="salesDrawerNavCards" role="tablist" aria-label="Order sections">
+    <div class="so-dash" id="soDash">
+        <div class="so-dash-kpis">
+            <div class="so-dash-kpi so-kpi-sky">
+                <span class="so-dash-kpi-icon"><span class="material-icons-round">view_list</span></span>
+                <div>
+                    <span class="so-dash-kpi-label">Items</span>
+                    <strong id="soDashItems">—</strong>
+                </div>
+            </div>
+            <div class="so-dash-kpi so-kpi-mint">
+                <span class="so-dash-kpi-icon"><span class="material-icons-round">inventory_2</span></span>
+                <div>
+                    <span class="so-dash-kpi-label">Quantity</span>
+                    <strong id="soDashQty">—</strong>
+                </div>
+            </div>
+            <div class="so-dash-kpi so-kpi-amber">
+                <span class="so-dash-kpi-icon"><span class="material-icons-round">payments</span></span>
+                <div>
+                    <span class="so-dash-kpi-label">Net Value</span>
+                    <strong id="soDashNet">—</strong>
+                </div>
+            </div>
+        </div>
+        <div class="so-dash-charts">
+            <div class="so-dash-chart-card so-chart-sky">
+                <div class="so-dash-chart-head">
+                    <span class="material-icons-round">bar_chart</span>
+                    <div>
+                        <h4>Quantity by item</h4>
+                        <p>Sales order line quantities</p>
+                    </div>
+                </div>
+                <div class="so-dash-chart-wrap"><canvas id="soQtyChart"></canvas></div>
+            </div>
+            <div class="so-dash-chart-card so-chart-violet">
+                <div class="so-dash-chart-head">
+                    <span class="material-icons-round">donut_large</span>
+                    <div>
+                        <h4>Value by category</h4>
+                        <p>Net amount mix</p>
+                    </div>
+                </div>
+                <div class="so-dash-chart-wrap so-dash-chart-wrap--donut"><canvas id="soMixChart"></canvas></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="so-related-panel" id="soRelatedPanel">
+        <div class="so-related-head">
+            <span class="material-icons-round">view_list</span>
+            <div>
+                <strong>Sales Order table</strong>
+                <p>Click a line to open Planning, BOM, Material and Procurement</p>
+            </div>
+            <span class="so-related-count" id="soRelatedCount">0 items</span>
+        </div>
+        <div class="so-related-table-wrap">
+            <table class="so-related-table">
+                <thead>
+                    <tr>
+                        <th>Line</th>
+                        <th>Category</th>
+                        <th>Material</th>
+                        <th>Plant</th>
+                        <th>Customer</th>
+                        <th>Type</th>
+                        <th class="col-num">Qty</th>
+                        <th class="col-num">Net</th>
+                        <th>Sales Order</th>
+                    </tr>
+                </thead>
+                <tbody id="soRelatedLinesBody">
+                    <tr><td colspan="9" class="so-related-empty">Open a quotation to see sales order items.</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <div class="so-line-drawer" id="soLineDrawer" aria-hidden="true">
+        <header class="so-line-head">
+            <button type="button" class="btn-subdrawer-back" id="soLineBack" title="Back to sales order">
+                <span class="material-icons-round">arrow_back</span>
+                <span>Back</span>
+            </button>
+            <div class="so-line-head-copy">
+                <span class="so-line-kicker" id="soLineKicker">Sales API line</span>
+                <h3 id="soLineTitle">—</h3>
+                <p id="soLineSub">Select a table row to load SAP line details</p>
+            </div>
+            <button type="button" class="icon-btn sales-drawer-close-btn" id="soLineClose" aria-label="Close line" title="Close">
+                <span class="material-icons-round">close</span>
+            </button>
+        </header>
+        <div class="so-line-facts" id="soLineFacts"></div>
+        <nav class="sales-drawer-nav-cards" id="salesDrawerNavCards" role="tablist" aria-label="Order sections">
         <button type="button" class="drawer-nav-card card-planning" data-tab="planning" role="tab" id="tabCardPlanning">
             <div class="dnc-top">
                 <span class="dnc-icon-wrap"><span class="material-icons-round">event_available</span></span>
@@ -411,6 +499,7 @@ $extraScripts = ob_get_clean();
             <!-- Procurement Panel -->
             <div class="drawer-tab-panel" id="panelProcurement" role="tabpanel" hidden></div>
         </div>
+    </div>
     </div>
 </aside>
 

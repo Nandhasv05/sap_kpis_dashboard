@@ -52,7 +52,7 @@ class SalesController extends Controller
             'primaryColor'     => $cfg['primary'],
             'primaryDark'      => $cfg['primary_dark'],
             'showPeriodFilter' => true,
-            'year'             => $year,
+            'year'      => $year,
             'defaultFrom'      => $thisWeekFrom,
             'defaultTo'        => $thisWeekTo,
             'periodLabel'      => 'This Week',
@@ -85,6 +85,8 @@ class SalesController extends Controller
             'from_date' => trim((string) ($_GET['from_date'] ?? $_GET['from'] ?? '')),
             'to_date'   => trim((string) ($_GET['to_date'] ?? $_GET['to'] ?? '')),
             'search'    => trim((string) ($_GET['search'] ?? $_GET['q'] ?? '')),
+            'quotation' => trim((string) ($_GET['quotation'] ?? '')),
+            'sales_order' => trim((string) ($_GET['sales_order'] ?? $_GET['so'] ?? '')),
             'page'      => max(1, (int) ($_GET['page'] ?? 1)),
             'per_page'  => $export
                 ? min(8000, max(1, (int) ($_GET['per_page'] ?? 8000)))
@@ -140,21 +142,22 @@ class SalesController extends Controller
         $out = fopen('php://output', 'w');
         fprintf($out, chr(0xEF) . chr(0xBB) . chr(0xBF));
         fputcsv($out, [
-            'Sales Order', 'Line', 'Material', 'Plant', 'Division',
-            'Date', 'Qty', 'Net Amount', 'Status', 'Category',
+            'Quotation', 'Item', 'Material', 'Description', 'Plant',
+            'Date', 'Qty', 'Net Value', 'Sales Order', 'Category', 'Customer',
         ]);
         foreach ($records as $row) {
             fputcsv($out, [
-                $row['sales_order'] ?? '',
+                $row['quotation'] ?? '',
                 $row['line_item'] ?? '',
                 $row['material'] ?? '',
+                $row['style'] ?? '',
                 $row['plant'] ?? '',
-                $row['division'] ?? '',
                 $row['date'] ?? '',
                 $row['qty'] ?? '',
                 $row['net_amount'] ?? '',
-                $row['status'] ?? '',
+                $row['sales_order'] ?? '',
                 $row['item_category'] ?? '',
+                $row['customer'] ?? '',
             ]);
         }
         fclose($out);
@@ -171,13 +174,17 @@ class SalesController extends Controller
         header('Expires: 0');
 
         $salesDoc = trim((string) ($_GET['sales_doc'] ?? ''));
-        if ($salesDoc === '') {
-            $salesDoc = '4203';
+        if ($salesDoc === '' || $salesDoc === '—') {
+            echo json_encode([
+                'status' => 'error',
+                'error'  => 'Sales order is required for procurement.',
+                'data'   => [],
+            ]);
+            return;
         }
-
         $rawDoc = ltrim($salesDoc, '0');
         if ($rawDoc === '') {
-            $rawDoc = '4203';
+            $rawDoc = $salesDoc;
         }
         $paddedDoc = str_pad($rawDoc, 10, '0', STR_PAD_LEFT);
 
@@ -290,9 +297,14 @@ class SalesController extends Controller
         header('Pragma: no-cache');
         header('Expires: 0');
 
-        $salesOrder = trim((string) ($_GET['sales_order'] ?? '4203'));
-        if ($salesOrder === '') {
-            $salesOrder = '4203';
+        $salesOrder = trim((string) ($_GET['sales_order'] ?? ''));
+        if ($salesOrder === '' || $salesOrder === '—') {
+            echo json_encode([
+                'status' => 'error',
+                'error'  => 'Sales order is required for BOM.',
+                'data'   => [],
+            ]);
+            return;
         }
 
         $rawDoc = ltrim($salesOrder, '0');

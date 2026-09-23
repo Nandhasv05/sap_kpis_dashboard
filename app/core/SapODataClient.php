@@ -64,7 +64,7 @@ class SapODataClient
      * @param callable(array<int, array>):void $onBatch
      * @return array{row_count: int, error: ?string}
      */
-    public function eachPage(callable $onBatch, array $extraQuery = []): array
+    public function eachPage(callable $onBatch, array $extraQuery = [], ?string $service = null): array
     {
         if (!$this->isEnabled()) {
             return ['row_count' => 0, 'error' => 'SAP integration is disabled.'];
@@ -84,7 +84,7 @@ class SapODataClient
                 '$format' => 'json',
             ], $extraQuery);
 
-            $payload = $this->request($this->buildUrl($query));
+            $payload = $this->request($this->buildUrl($query, $service));
 
             if ($payload['error'] !== null) {
                 $lastError = $payload['error'];
@@ -124,13 +124,15 @@ class SapODataClient
     /*
      * Build URL method
      */
-    private function buildUrl(array $query): string
+    private function buildUrl(array $query, ?string $service = null): string
     {
         $base = rtrim((string) ($this->cfg['base_url'] ?? ''), '/');
-        $service = (string) ($this->cfg['service'] ?? '');
+        $path = ($service !== null && $service !== '')
+            ? $service
+            : (string) ($this->cfg['service'] ?? '');
         $qs = http_build_query($query, '', '&', PHP_QUERY_RFC3986);
 
-        return $base . $service . '?' . $qs;
+        return $base . $path . '?' . $qs;
     }
 
     /*
