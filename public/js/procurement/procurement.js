@@ -7,6 +7,19 @@
     window.KapisSales.modules = window.KapisSales.modules || [];
     window.KapisSales.modules.push(function installProcurement(env) {
         with (env) {
+    /* ==========================================================================
+       Procurement Panel & SAP Live Data Loader (ZI_PROCUREMENTAPI_HUB_CDS)
+    ========================================================================== */
+
+    /**
+     * Render the procurement panel
+     * @param {Object} record - The record
+     * @param {boolean} isLoading - Whether the panel is loading
+     * @param {string} error - The error message
+     * @param {Object[]} procData - The procurement data
+     * @param {Object} rawPayload - The raw payload
+     * @returns {void}
+     */
     function renderProcurementPanel(record, isLoading = false, error = null, procData = null, rawPayload = null) {
         if (!panelProcurement) return;
         const so = String(record?.sales_order || '').trim();
@@ -651,6 +664,12 @@
         applyFiltersAndSort();
     }
 
+    /**
+     * Load the procurement drawer
+     * @param {Object} record - The record
+     * @param {boolean} forceReload - Whether to force reload the drawer
+     * @returns {void}
+     */
     async function loadDrawerProcurement(record, forceReload = false) {
         if (!record) return;
         const so = String(record.sales_order || '').trim();
@@ -709,6 +728,11 @@
         return '';
     }
 
+    /**
+     * Open the procurement modal
+     * @param {string} salesDoc - The sales document
+     * @returns {void}
+     */
     function openProcurementModal(salesDoc = '') {
         if (!procModal) return;
         currentProcSalesDoc = String(salesDoc || currentDrawerRecord?.sales_order || '').trim();
@@ -739,6 +763,10 @@
         loadProcurementData(currentProcSalesDoc);
     }
 
+    /**
+     * Close the procurement modal
+     * @returns {void}
+     */
     function closeProcurementModal() {
         procModal?.classList.remove('is-open');
         if (procBackdrop) {
@@ -757,6 +785,11 @@
         }, 320);
     }
 
+    /**
+     * Load the procurement data
+     * @param {string} salesDoc - The sales document
+     * @returns {void}
+     */
     async function loadProcurementData(salesDoc = '') {
         const cleanDoc = String(salesDoc || currentProcSalesDoc || currentDrawerRecord?.sales_order || '').trim();
         if (!cleanDoc) return;
@@ -848,6 +881,11 @@
         }
     }
 
+    /**
+     * Render the procurement table
+     * @param {Object[]} records - The procurement records
+     * @returns {void}
+     */
     function renderProcurementTable(records) {
         if (!procTableBody) return;
         const query = procSearchInput?.value?.trim().toLowerCase() || '';
@@ -921,6 +959,11 @@
         });
     }
 
+    /**
+     * Open the PR drawer
+     * @param {Object} item - The item
+     * @returns {void}
+     */
     async function openPRDrawer(item) {
         if (!prDrawer) return;
         prDrawer.classList.add('open');
@@ -1052,6 +1095,10 @@
         }
     }
 
+    /**
+     * Close the PR drawer
+     * @returns {void}
+     */
     function closePRDrawer() {
         if (!prDrawer) return;
         prDrawer.classList.remove('open');
@@ -1086,12 +1133,20 @@
         procSearchTimer = setTimeout(() => renderProcurementTable(currentProcData), 200);
     });
 
+    /******
+     * Procurement search clear click event
+     * @returns {void}
+     */
     procSearchClear?.addEventListener('click', () => {
         if (procSearchInput) procSearchInput.value = '';
         if (procSearchClear) procSearchClear.hidden = true;
         renderProcurementTable(currentProcData);
     });
 
+    /**
+     * Procurement search clear click event
+     * @returns {void}
+     */
         env.renderProcurementPanel = renderProcurementPanel;
         env.loadDrawerProcurement = loadDrawerProcurement;
         env.groupTagClass = groupTagClass;

@@ -11,10 +11,21 @@
        BOM Panel & SAP Live Data Loader (ZC_COOISCOMP_HUB_CDS)
     ========================================================================== */
 
+    /**
+     * Get the line number from a BOM row
+     * @param {Object} row - The BOM row
+     * @returns {string} The line number
+     */
     function bomRowLineNo(row) {
         return row?.SalesOrderItem || row?.SalesDocumentItem || row?.SalesOrderItemNumber || row?.Item || '';
     }
 
+    /**
+     * Filter BOM rows by line number
+     * @param {Object[]} rows - The BOM rows
+     * @param {string} lineItem - The line number
+     * @returns {Object[]} The filtered BOM rows
+     */
     function filterBomByLine(rows, lineItem) {
         const list = Array.isArray(rows) ? rows : [];
         const rawLine = String(lineItem ?? '').trim();
@@ -25,6 +36,14 @@
         return list.filter((c) => normLineNo(bomRowLineNo(c)) === line);
     }
 
+    /**
+     * Render the BOM panel
+     * @param {Object} record - The record
+     * @param {boolean} isLoading - Whether the panel is loading
+     * @param {string} error - The error message
+     * @param {Object[]} bomData - The BOM data
+     * @param {Object} rawPayload - The raw payload
+     */
     function renderBomPanel(record, isLoading = false, error = null, bomData = null, rawPayload = null) {
         if (!panelBom) return;
         const so = String(record?.sales_order || '').trim();
@@ -573,6 +592,11 @@
         renderPage(1);
     }
 
+    /**
+     * Load the BOM panel
+     * @param {Object} record - The record
+     * @param {boolean} forceReload - Whether to force reload the panel
+     */
     async function loadDrawerBom(record, forceReload = false) {
         if (!record) return;
         const so = String(record.sales_order || '').trim();

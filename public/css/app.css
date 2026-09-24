@@ -372,12 +372,42 @@ body {
     font-weight: 500;
 }
 
-.app-footer span {
+.app-footer .app-footer-brand {
     font-size: 0.62rem;
     font-weight: 700;
     letter-spacing: 0.14em;
     text-transform: uppercase;
     color: rgba(20, 35, 28, 0.4);
+}
+
+.app-footer-live {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.28rem;
+    vertical-align: middle;
+}
+
+.app-footer-heart {
+    display: inline-flex;
+    font-size: 0.72rem;
+    line-height: 1;
+    color: #e11d48;
+    transform-origin: center;
+    animation: footerHeartbeat 1.35s ease-in-out infinite;
+}
+
+@keyframes footerHeartbeat {
+    0%, 100% { transform: scale(1); }
+    14% { transform: scale(1.28); }
+    28% { transform: scale(1); }
+    42% { transform: scale(1.18); }
+    70% { transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .app-footer-heart {
+        animation: none;
+    }
 }
 
 .nav-toggle {
@@ -1002,8 +1032,12 @@ body.kapis-lite .app-footer .app-footer-copy {
     color: #64748b;
 }
 
-body.kapis-lite .app-footer span {
+body.kapis-lite .app-footer .app-footer-brand {
     color: #94a3b8;
+}
+
+body.kapis-lite .app-footer-heart {
+    color: #e11d48;
 }
 
 .kapis-dash-banner {

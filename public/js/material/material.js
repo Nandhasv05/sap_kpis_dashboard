@@ -2,7 +2,7 @@
  * AUTHOR : NANDHAKUMAR S V
  * DATE : 07/09/2026
  * DESCRIPTION : Material hub — colorful live ZI_MaterialAPI_HUB UI
- */
+*/
 (function () {
     const cfg = window.MATERIAL_PAGE || {};
     const PALETTE = ['#0f766e', '#c2410c', '#b45309', '#047857', '#0284c7', '#ca8a04', '#be123c', '#0d9488'];

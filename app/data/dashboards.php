@@ -17,7 +17,7 @@ $year = (int) date('Y');
 $dashboards = [
 
     'sales' => [
-        'title'    => 'Sales Dashboard',
+        'title'    => 'Quotation Dashboard',
         'primary'  => '#1b5e4b',
         'primary_dark' => '#0f3d32',
         'nav_icon' => 'point_of_sale',

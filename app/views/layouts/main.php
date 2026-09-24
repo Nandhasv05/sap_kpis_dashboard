@@ -53,8 +53,13 @@ $logoUrl = asset('assets/logo.png');
             gap: 1rem;
             background: #fff;
         }
+        .kapis-splash-label {
+            font-size: 0.95rem;
+            color: #64748b;
+        }
     </style>
     <?php if (!empty($extraHead)) echo $extraHead; ?>
+    <link rel="stylesheet" href="<?= e(asset('css/layout/responsive.css')) ?>">
 </head>
 <body class="kapis-lite">
     <div class="kapis-splash" id="kapisSplash">
@@ -187,9 +192,12 @@ $logoUrl = asset('assets/logo.png');
         <p class="app-footer-copy">
             &copy; <?= date('Y') ?> <?= e($brandName) ?>
             <span class="app-footer-dot">·</span>
-            Live SAP
+            <span class="app-footer-live">
+                <span class="app-footer-heart material-icons-round" aria-hidden="true">favorite</span>
+                Live SAP
+            </span>
         </p>
-        <span>Evolv Clothing</span>
+        <span class="app-footer-brand">Evolv Clothing</span>
     </footer>
 
     <script src="<?= e(asset('js/app.js')) ?>"></script>

@@ -114,11 +114,7 @@ class SapODataClient
             }
         }
 
-        if ($total > 0) {
-            return ['row_count' => $total, 'error' => null];
-        }
-
-        return ['row_count' => 0, 'error' => $lastError ?? 'No records returned from SAP.'];
+        return ['row_count' => $total, 'error' => $total > 0 ? null : $lastError];
     }
 
     /*

@@ -11,6 +11,15 @@
        Material Panel & SAP Live Data Loader (ZI_MATERIALAPI_HUB_CDS)
     ========================================================================== */
 
+    /**
+     * Render the material panel
+     * @param {Object} record - The record
+     * @param {boolean} isLoading - Whether the panel is loading
+     * @param {string} error - The error message
+     * @param {Object[]} matData - The material data
+     * @param {Object} rawPayload - The raw payload
+     * @param {string} mode - The mode
+     */
     function renderMaterialPanel(record, isLoading = false, error = null, matData = null, rawPayload = null, mode = 'material') {
         if (!panelMaterial) return;
         const mat = String(record?.material || '').trim();
@@ -693,6 +702,13 @@
         }
     }
 
+    /**
+     * Load the material drawer
+     * @param {Object} record - The record
+     * @param {boolean} forceReload - Whether to force reload the drawer
+     * @param {string} mode - The mode
+     * @returns {void}
+     */
     async function loadDrawerMaterial(record, forceReload = false, mode = 'material') {
         if (!record) return;
         let working = record;

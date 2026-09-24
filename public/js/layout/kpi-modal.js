@@ -3,6 +3,9 @@
  * DESCRIPTION : Shared KPI card modal
  */
 (function () {
+    /* ==========================================================================
+             KPI Modal & KPI Details Drawer
+   ========================================================================== */
     const kpiModal = document.getElementById('kpiModal');
     const kpiModalCard = kpiModal?.querySelector('.kpi-modal-card');
     const kpiModalTitle = document.getElementById('kpiModalTitle');
@@ -13,11 +16,21 @@
     const kpiModalIconName = document.getElementById('kpiModalIconName');
     const kpiModalIcon = document.getElementById('kpiModalIcon');
 
+    /**
+     * Get the tone of a KPI card
+     * @param {Element} card - The KPI card
+     * @returns {string} The tone
+     */
     function cardTone(card) {
         const cls = [...(card?.classList || [])].find((c) => c.startsWith('tone-'));
         return cls ? cls.replace('tone-', '') : 'sky';
     }
 
+    /**
+     * Get the details from a KPI card
+     * @param {Element} card - The KPI card
+     * @returns {Object} The details
+     */
     function detailsFromCard(card) {
         const related = [...document.querySelectorAll('.kpi-card.proj-card')].map((el) => ([
             el.querySelector('.label')?.textContent?.trim() || 'Metric',
@@ -33,6 +46,11 @@
         };
     }
 
+    /******
+     * Open Kpi Modal Details Drawer
+     * @param {Object} opts - The options
+     * @returns {void}
+     */
     function openKpiModal(opts) {
         if (!kpiModal) return;
         const tone = opts.tone || 'sky';
@@ -69,14 +87,23 @@
         document.body.classList.add('kpi-modal-open');
     }
 
+    /**
+     * Close Kpi Modal Details Drawer
+     * @returns {void}
+     */
     function closeKpiModal() {
         if (!kpiModal) return;
         kpiModal.hidden = true;
         document.body.classList.remove('kpi-modal-open');
     }
 
+    /**
+     * Kpi Modal Details Drawer
+     * @returns {Object} The Kpi Modal Details Drawer
+     */ 
     window.kapisKpiModal = { open: openKpiModal, close: closeKpiModal };
 
+    
     document.querySelectorAll('.kpi-card.proj-card').forEach((card) => {
         function show() {
             const key = card.dataset.kpi || '';

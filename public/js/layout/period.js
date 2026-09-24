@@ -29,7 +29,11 @@
         return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
     }
 
-    // START OF WEEK FUNCTION
+    /**
+     * Get the start of the week
+     * @param {Date} d - The date
+     * @returns {Date} The start of the week
+     */
     function startOfWeek(d) {
         const x = new Date(d);
         const day = x.getDay();
@@ -39,7 +43,11 @@
         return x;
     }
 
-    // END OF WEEK FUNCTION
+    /**
+     * Get the end of the week
+     * @param {Date} d - The date
+     * @returns {Date} The end of the week
+     */
     function endOfWeek(d) {
         const s = startOfWeek(d);
         const e = new Date(s);
@@ -47,7 +55,11 @@
         return e;
     }
 
-    // GET PERIOD RANGE FUNCTION
+    /**
+     * Get the period range
+     * @param {string} period - The period
+     * @returns {Object} The period range
+     */
     function getPeriodRange(period) {
         const now = new Date();
         now.setHours(0, 0, 0, 0);
@@ -88,7 +100,11 @@
         return { from: fmt(from), to: fmt(to), period };
     }
 
-    // EMIT PERIOD FUNCTION
+    /**
+     * Emit a period change event
+     * @param {Object} detail - The detail
+     * @returns {void}
+     */
     function emitPeriod(detail) {
         window.dispatchEvent(new CustomEvent('evolv:periodchange', { detail }));
         const dashFrom = document.getElementById('dateFrom');
@@ -97,7 +113,12 @@
         if (dashTo) dashTo.value = detail.to;
     }
 
-    // SELECT PERIOD FUNCTION
+    /**
+     * Select a period
+     * @param {string} period - The period
+     * @param {Object} customRange - The custom range
+     * @returns {void}
+     */
     function selectPeriod(period, customRange) {
         const range = customRange || getPeriodRange(period);
         if (periodLabel) periodLabel.textContent = PERIOD_LABELS[period] || 'Period';
@@ -113,7 +134,10 @@
         });
     }
 
-    // OPEN PERIOD MENU FUNCTION
+    /**
+     * Open the period menu
+     * @returns {void}
+     */
     function openPeriodMenu() {
         if (!periodMenu || !periodFilter) return;
         periodMenu.hidden = false;
@@ -121,7 +145,10 @@
         periodTrigger?.setAttribute('aria-expanded', 'true');
     }
 
-    // CLOSE PERIOD MENU FUNCTION
+    /**
+     * Close the period menu
+     * @returns {void}
+     */
     function closePeriodMenu() {
         if (!periodMenu || !periodFilter) return;
         periodMenu.hidden = true;
@@ -129,7 +156,11 @@
         periodTrigger?.setAttribute('aria-expanded', 'false');
     }
 
-    // PERIOD TRIGGER CLICK EVENT
+    /**
+     * Period trigger click event
+     * @param {Event} e - The event
+     * @returns {void}
+     */
     if (periodTrigger) {
         periodTrigger.addEventListener('click', (e) => {
             e.stopPropagation();
@@ -138,7 +169,11 @@
         });
     }
 
-    // PERIOD OPTIONS CLICK EVENT
+    /**
+     * Period options click event
+     * @param {Event} e - The event
+     * @returns {void}
+     */
     document.querySelectorAll('.period-option').forEach(opt => {
         opt.addEventListener('click', () => {
             const period = opt.dataset.period;
@@ -173,12 +208,18 @@
         if (periodFilter && !periodFilter.contains(e.target)) closePeriodMenu();
     });
 
-    // CUSTOM DATE CANCEL CLICK EVENT
+    /**
+     * Custom date cancel click event
+     * @returns {void}
+     */
     document.getElementById('customDateCancel')?.addEventListener('click', () => {
         if (customModal) customModal.hidden = true;
     });
 
-    // CUSTOM DATE APPLY CLICK EVENT
+    /**
+     * Custom date apply click event
+     * @returns {void}
+     */
     document.getElementById('customDateApply')?.addEventListener('click', () => {
         const err = document.getElementById('customDateError');
         function showErr(msg) {
@@ -210,12 +251,19 @@
         selectPeriod('custom', { from: headerFrom.value, to: headerTo.value, period: 'custom' });
     });
 
-    // CUSTOM MODAL CLICK EVENT
+    /**
+     * Custom modal click event
+     * @param {Event} e - The event
+     * @returns {void}
+     */
     customModal?.addEventListener('click', (e) => {
         if (e.target === customModal) customModal.hidden = true;
     });
 
-    // PERIOD TRIGGER INITIALIZE
+    /**
+     * Period trigger initialize
+     * @returns {void}
+     */
     if (periodTrigger) {
         const pageCfg = window.SALES_PAGE || {};
         const defPeriod = pageCfg.defaultPeriod || 'this_week';
